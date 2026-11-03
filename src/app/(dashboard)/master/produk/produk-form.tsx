@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormDialog, useFormDialog } from "@/components/shared/form-dialog";
-import { simpanProduk } from "../actions";
+import { simpanProduk } from "./actions";
 
 export interface BarisProduk {
   id: number;

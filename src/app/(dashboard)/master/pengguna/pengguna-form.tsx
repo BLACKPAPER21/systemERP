@@ -9,7 +9,7 @@ import { FormDialog, useFormDialog } from "@/components/shared/form-dialog";
 import {
   simpanPengguna,
   ubahPengguna,
-} from "../actions";
+} from "./actions";
 import type { AksiHasil } from "@/lib/aksi";
 
 export interface BarisPengguna {

@@ -22,7 +22,6 @@ export function FormDialog({
   deskripsi,
   galat,
   proses,
-  tombolBuka,
   children,
   onSubmit,
   labelSimpan = "Simpan",

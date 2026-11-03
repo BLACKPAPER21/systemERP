@@ -59,13 +59,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = Number(user.id);
         token.peran = (user as { peran?: string }).peran;
+        token.nama = (user as { nama?: string }).nama;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as number;
+        (session.user as { id: number }).id = token.id as number;
         session.user.peran = token.peran as string;
+        session.user.nama = token.nama as string;
       }
       return session;
     },
