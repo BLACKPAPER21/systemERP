@@ -14,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className="antialiased">{children}</body>
+      {/* suppressHydrationWarning: ekstensi browser menyuntik class (mis. vc-init)
+          ke <body> sebelum hidrasi — jangan biarkan React protes di dev (NF-18). */}
+      <body className="antialiased" suppressHydrationWarning>{children}</body>
     </html>
   );
 }
