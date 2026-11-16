@@ -13,16 +13,6 @@ export const metadata = {
 };
 
 // Fungsi helper status badge
-function getStatusProps(status: string) {
-  switch (status) {
-    case "invoiced": return { status: "Aktif", label: "Invoiced" };
-    case "confirmed": return { status: "Proses", label: "Confirmed" };
-    case "draft": return { status: "Menunggu", label: "Draft" };
-    case "cancelled": return { status: "Nonaktif", label: "Cancelled" };
-    default: return { status: "Menunggu", label: status };
-  }
-}
-
 // PERBAIKAN: Menambahkan tipe Promise pada params sesuai standar Next.js terbaru
 export default async function DetailSOPage({ params }: { params: Promise<{ id: string }> }) {
   // PERBAIKAN: Gunakan await untuk meng-unwrap params sebelum mengakses .id
@@ -48,28 +38,25 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
     );
   }
 
-  const badgeProps = getStatusProps(data.status);
-  // Casting aman untuk mencegah error JSX
-  const validStatus = badgeProps.status as "Aktif" | "Nonaktif" | "Menunggu" | "Proses";
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
       {/* HEADER NAVIGASI */}
-      <PageHeader 
-        title={`Detail SO: ${data.nomor}`} 
-        description="Rincian informasi dokumen Sales Order."
-      >
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Printer className="h-4 w-4" /> Cetak PDF
-          </Button>
-          <Link href="/penjualan/so">
-            <Button variant="outline" className="flex items-center gap-2 bg-gray-50">
-              <ArrowLeft className="h-4 w-4" /> Kembali
+      <PageHeader
+        judul={`Detail SO: ${data.nomor}`}
+        deskripsi="Rincian informasi dokumen Sales Order."
+        aksi={
+          <>
+            <Button variant="outline" className="flex items-center gap-2">
+              <Printer className="h-4 w-4" /> Cetak PDF
             </Button>
-          </Link>
-        </div>
-      </PageHeader>
+            <Link href="/penjualan/so">
+              <Button variant="outline" className="flex items-center gap-2 bg-gray-50">
+                <ArrowLeft className="h-4 w-4" /> Kembali
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
       {/* DOKUMEN UTAMA */}
       <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
@@ -92,7 +79,7 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
           </div>
           <div>
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Status Dokumen</p>
-            <StatusBadge status={validStatus} label={badgeProps.label.toUpperCase()} />
+            <StatusBadge status={data.status} />
           </div>
         </div>
 

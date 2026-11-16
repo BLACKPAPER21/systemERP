@@ -6,32 +6,26 @@ import { getInvoices } from "./actions";
 import { Search, FileText, Eye, DollarSign, AlertCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { formatRupiah } from "@/lib/format";
+import { pageAccess } from "@/lib/auth-guard";
+import { AksesDitolak } from "@/components/shared/akses-ditolak";
 
 export const metadata = {
   title: "Daftar Invoice | SystemERP",
 };
 
-// Helper warna untuk status pembayaran
-function getPaymentStatusProps(statusBayar: string) {
-  switch (statusBayar) {
-    case "lunas":
-      return { status: "Aktif", label: "LUNAS" }; // Hijau
-    case "belum":
-      return { status: "Nonaktif", label: "BELUM BAYAR" }; // Merah
-    default:
-      return { status: "Menunggu", label: statusBayar };
-  }
-}
-
 export default async function InvoicePage() {
+  // NF-3 — staf gudang tanpa akses ke invoice penjualan (PRD §3 matriks akses M4)
+  const akses = await pageAccess(["owner", "sales", "keuangan"]);
+  if (!akses.ok) return <AksesDitolak pesan={akses.pesan} />;
+
   const { data: listInvoice, ringkasan, error } = await getInvoices();
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      <PageHeader 
-        title="Faktur Penjualan (Invoice)" 
-        description="Kelola tagihan pelanggan, pantau piutang, dan penerimaan pembayaran." 
+      <PageHeader
+        judul="Faktur Penjualan (Invoice)"
+        deskripsi="Kelola tagihan pelanggan, pantau piutang, dan penerimaan pembayaran."
       />
 
       {/* WIDGET ANALITIK KEUANGAN & PIUTANG */}
@@ -122,8 +116,6 @@ export default async function InvoicePage() {
               </TableHeader>
               <TableBody>
                 {listInvoice.map((row) => {
-                  const payProps = getPaymentStatusProps(row.statusBayar);
-                  const validPayStatus = payProps.status as "Aktif" | "Nonaktif" | "Menunggu" | "Proses";
 
                   return (
                     <TableRow className="hover:bg-gray-50" key={row.id}>
@@ -146,7 +138,7 @@ export default async function InvoicePage() {
                         {formatRupiah(Number(row.total))}
                       </TableCell>
                       <TableCell className="text-center">
-                        <StatusBadge label={payProps.label} status={validPayStatus}/>
+                        <StatusBadge status={row.statusBayar} />
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

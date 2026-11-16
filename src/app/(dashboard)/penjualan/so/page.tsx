@@ -11,21 +11,6 @@ export const metadata = {
   title: "Sales Order | SystemERP",
 };
 
-function getStatusProps(status: string) {
-  switch (status) {
-    case "invoiced":
-      return { status: "Aktif", label: "Invoiced" };
-    case "confirmed":
-      return { status: "Proses", label: "Confirmed" };
-    case "draft":
-      return { status: "Menunggu", label: "Draft" };
-    case "cancelled":
-      return { status: "Nonaktif", label: "Cancelled" };
-    default:
-      return { status: "Menunggu", label: status };
-  }
-}
-
 export default async function PesananPenjualanPage() {
   const { data: pesanan, ringkasan, error } = await getPesananPenjualan();
 
@@ -38,9 +23,9 @@ export default async function PesananPenjualanPage() {
         kita letakkan tombolnya di sampingnya menggunakan flexbox. 
       */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <PageHeader 
-          title="Sales Order (SO)" 
-          description="Kelola daftar pesanan penjualan, dari draft hingga siap invoice." 
+        <PageHeader
+          judul="Sales Order (SO)"
+          deskripsi="Kelola daftar pesanan penjualan, dari draft hingga siap invoice."
         />
         
         {/* INI ADALAH TOMBOL TAMBAH SO YANG DIINGINKAN */}
@@ -142,9 +127,6 @@ export default async function PesananPenjualanPage() {
               </TableHeader>
               <TableBody>
                 {pesanan.map((row) => {
-                  const badgeProps = getStatusProps(row.status);
-                  const validStatus = badgeProps.status as "Aktif" | "Nonaktif" | "Menunggu" | "Proses";
-
                   return (
                     <TableRow className="hover:bg-gray-50" key={row.id}>
                       <TableCell className="font-medium text-blue-600">
@@ -160,7 +142,7 @@ export default async function PesananPenjualanPage() {
                         {formatRupiah(Number(row.total))}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge label={badgeProps.label.toUpperCase()} status={validStatus}/>
+                        <StatusBadge status={row.status} />
                       </TableCell>
                       <TableCell className="text-gray-500 text-sm">
                         {row.dibuatOleh || "-"}
