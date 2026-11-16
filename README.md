@@ -1,8 +1,21 @@
-# SystemERP — Fondasi Proyek + Modul M1 (Master Data & Pengguna)
+# SystemERP — Sistem ERP Terintegrasi untuk UMKM Retail/Distribusi
 
-Sistem ERP terintegrasi untuk UMKM retail/distribusi — 6 modul, satu basis data.
-Berkas ini menuntaskan **Tahap 0** (kerangka bersama) dan **Tahap 1** (modul M1)
-sehingga lima modul lain tidak lagi terblokir. Sumber kebenaran: `docs/PRD.md`.
+Enam modul, satu basis data, dikerjakan enam kelompok secara paralel.
+Sumber kebenaran: `docs/PRD.md`.
+
+## Status modul
+
+| Modul | Lingkup | Kelompok | Status |
+|:-----:|---------|----------|--------|
+| **M1** | Master data, RBAC, log audit, layanan bersama | BLACKPAPER21 | **Di `main`** |
+| **M2** | Pembelian — PO & penerimaan barang (GRN) | — | Belum masuk |
+| **M3** | Persediaan — kartu stok, opname, HPP rata-rata | — | Belum masuk (`stock.ts` masih stub) |
+| **M4** | Penjualan — SO & invoicing | ianfjrianto | **Di `main`** — lihat [catatan integrasi](#catatan-integrasi-yang-masih-terbuka) |
+| **M5** | Keuangan — jurnal, buku besar, beban, laporan, pembayaran | ur-ran | **Di `main`** (`docs/M5-KEUANGAN.md`) |
+| **M6** | Dashboard manajerial & penelusuran jurnal | NejadProgram | **Di `main`** |
+
+Menu **Pesanan Pembelian** dan **Kartu Stok** sudah ada di sidebar tetapi
+halamannya belum dibuat (M2/M3) — tautannya masih 404.
 
 ## Tumpukan teknologi
 
@@ -22,17 +35,50 @@ sehingga lima modul lain tidak lagi terblokir. Sumber kebenaran: `docs/PRD.md`.
 
 ## Setup lokal
 
+Salin `.env.example` menjadi `.env.local`, lalu isi:
+
+```ini
+DATABASE_URL=postgresql://...        # Neon, atau PostgreSQL lokal
+AUTH_SECRET=...                      # contoh: openssl rand -base64 32
+```
+
 ```sh
 npm i            # pasang dependensi
-npm run db:push  # terapkan skema ke Neon (DATABASE_URL sudah di .env.local)
+npm run db:push  # terapkan skema ke basis data
 npm run db:seed  # isi 8 akun + 4 pengguna demo + data master + jurnal J0
 npm run dev      # buka http://localhost:3000
 ```
 
-Skrip tersedia: `dev`, `build`, `start`, `db:generate`, `db:push`, `db:seed`.
+Skrip tersedia: `dev`, `db:local`, `build`, `start`, `db:generate`, `db:push`,
+`db:seed`.
 
-> `DATABASE_URL` dibaca dari `.env.local` — berkas ini **tidak pernah di-commit**
-> (`.gitignore` memblokir `.env*`, NF-6).
+### Tanpa Neon — PostgreSQL lokal di dalam proses
+
+`npm run db:local` menjalankan PGlite sebagai server protokol-wire PostgreSQL di
+`127.0.0.1:5432` (data tersimpan di `.pgdata/`, sudah di-gitignore). Berguna
+untuk mengembangkan tanpa koneksi internet. Jalankan di terminal terpisah, lalu
+arahkan `DATABASE_URL` ke sana:
+
+```ini
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+```
+
+Setelah itu `npm run db:push` dan `npm run db:seed` seperti biasa.
+
+> `.env.local` **tidak pernah di-commit** — `.gitignore` memblokir `.env*` (NF-6).
+
+### Menjalankan build produksi secara lokal
+
+`next start` berjalan dalam mode produksi, dan Auth.js menolak host yang tidak
+dipercaya (`UntrustedHost`) sehingga semua rute `/api/auth/*` membalas 500.
+Tambahkan alamat yang dipakai ke `.env.local`:
+
+```ini
+AUTH_URL=http://127.0.0.1:3000
+```
+
+Di `next dev` hal ini tidak diperlukan. Saat dideploy, setel `AUTH_URL` ke
+domain sebenarnya.
 
 ## Kredensial demo (dibuat oleh seed)
 
@@ -46,6 +92,25 @@ Skrip tersedia: `dev`, `build`, `start`, `db:generate`, `db:push`, `db:seed`.
 Matriks hak akses per halaman mengikuti PRD §4.2; pemeriksaan dilakukan
 server-side pada setiap Server Action (NF-3) — menyembunyikan tombol saja
 tidak cukup.
+
+## Halaman yang sudah berjalan
+
+| Rute | Modul | Peran yang diizinkan |
+|------|:-----:|----------------------|
+| `/` — Dashboard manajerial | M6 | owner, keuangan |
+| `/jurnal/[id]` — penelusuran jurnal ke dokumen sumber | M6 | owner, keuangan |
+| `/master/produk`, `/supplier`, `/pelanggan`, `/akun` | M1 | sesuai PRD §4.2 |
+| `/master/pengguna` | M1 | owner |
+| `/audit` — log audit | M1 | owner |
+| `/penjualan/so` — daftar SO | M4 | keempat peran (lihat) |
+| `/penjualan/so/buat` | M4 | owner, sales |
+| `/penjualan/so/[id]` — detail & konfirmasi SO | M4 | keempat peran (lihat) |
+| `/penjualan/so/invoice` — faktur penjualan | M4 | owner, sales, keuangan |
+| `/keuangan/jurnal`, `/buku-besar`, `/beban`, `/laporan`, `/pembayaran` | M5 | owner, keuangan |
+| `/login` | M1 | publik |
+
+Tanpa sesi, `/` membalas 307 ke `/login` — penjagaan ada di
+`(dashboard)/layout.tsx` (NF-2), bukan di halaman root.
 
 ## Layanan bersama yang sudah tersedia (milik M1)
 
@@ -63,11 +128,11 @@ tidak cukup.
 - **§7.2 — `src/services/stock.ts`** (milik M3): `recordStockIn`, `recordStockOut`,
   `getAvailableStock`. Saat ini **stub** (prinsip stub-first §12.2) — M3 tahap 2
   mengganti isi, tanda tangan tidak boleh diubah sepihak.
-- **§7.3 — `src/services/journal.ts`** (milik M5): `createJournalEntry` sudah
+- **§7.3 — `src/services/journal.ts`** (milik M5): `createJournalEntry`
   **implementasi penuh** (validasi keseimbangan, translate kode akun, nomor `JV`,
-  tulis `journal_entries` + `journal_lines`). M5 memverifikasi/mengeraskan
-  implementasi ini pada tahap 2. **Satu-satunya jalur tulis jurnal** — seed J0
-  pun melalui fungsi ini (aturan K-2).
+  tulis `journal_entries` + `journal_lines`). **Satu-satunya jalur tulis jurnal** —
+  seed J0 pun melalui fungsi ini (aturan K-2). M5 juga menambahkan
+  `src/services/payment.ts` untuk pembayaran masuk/keluar dan beban.
 - **§7.5** — penandaan pelunasan: `markGoodsReceiptPaid` (M2) dan
   `markInvoicePaid` (M4) dipanggil M5; M5 dilarang menulis tabel M2/M4 langsung.
 
@@ -100,6 +165,23 @@ sunting baris milik kelompok Anda saja.
 `drizzle-kit generate`/`push` dijalankan **hanya oleh M1** pada titik
 sinkronisasi (§12.3) — berkas migrasi ada di `drizzle/`. Modul lain cukup
 menjalankan `npm run db:push` ketika migrasi baru diumumkan.
+
+## Catatan integrasi yang masih terbuka
+
+M4 sudah berada di `main` agar kelompok lain tidak terblokir, tetapi belum
+memakai kontrak antarmodul. Semuanya lolos `build` dan `tsc`, jadi tidak
+tertangkap pemeriksaan otomatis — perbaikan menjadi tugas kelompok M4:
+
+| # | Masalah | Akibat | Perbaikan |
+|:-:|---------|--------|-----------|
+| 1 | `generateInvoiceAndCutStock` tidak memanggil `createJournalEntry`; `invoices.journal_entry_id` dan `journal_entry_hpp_id` dibiarkan `NULL` | Invoice berstatus `posted` tanpa J3 (piutang) dan J4 (HPP) — buku besar serta laporan M5 tidak melihat penjualan, padahal dashboard M6 sudah menampilkan piutangnya | Terbitkan jurnal lewat `createJournalEntry` di dalam transaksi yang sama (§7.3) |
+| 2 | Stok dipotong dengan `UPDATE products.stok_saat_ini` langsung | Melanggar aturan K-2; tidak ada baris `stock_movements`, sehingga Kartu Stok M3 tidak mencatat penjualan | Panggil `recordStockOut` (§7.2) — menunggu M3 mengganti stub |
+| 3 | Nomor SO/invoice dibuat dengan `Math.random()` 4 digit | Kolom `nomor` **unique**; tabrakan membuat pembuatan SO gagal | Pakai `generateDocNumber(tx, prefix)` milik M1 |
+| 4 | `createSO(data: any)` tanpa validasi Zod, ada `@ts-ignore`, dan HPP memakai perkiraan "70% harga jual" bila `harga_beli` kosong | Masukan tak tervalidasi di batas kepercayaan (melanggar NF-4); nilai HPP tidak dapat dipertanggungjawabkan | Buat `src/lib/validations/penjualan.ts` dan ambil HPP dari `harga_pokok_rata_rata` milik M3 |
+
+Penjaga peran NF-3 untuk M4 **sudah dipasang** saat penggabungan (halaman buat
+SO dan halaman invoice, serta `createSO`, `confirmSO`,
+`generateInvoiceAndCutStock`) mengikuti matriks akses PRD §4.2.
 
 ## Struktur direktori
 
