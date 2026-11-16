@@ -9,11 +9,14 @@ import Link from "next/link";
 import {
   Boxes,
   Building2,
+  BookOpen,
+  BookMarked,
   Landmark,
   Receipt,
   ShieldCheck,
   ShoppingCart,
   Store,
+  TrendingUp,
   Users,
   Wallet,
   LayoutDashboard,
@@ -107,6 +110,30 @@ const MENU: MenuItem[] = [
     label: "Pembayaran",
     roles: ["owner", "keuangan"],
     icon: Wallet,
+  },
+  {
+    href: "/keuangan/jurnal",
+    label: "Jurnal Umum",
+    roles: ["owner", "keuangan"],
+    icon: BookOpen,
+  },
+  {
+    href: "/keuangan/buku-besar",
+    label: "Buku Besar",
+    roles: ["owner", "keuangan"],
+    icon: BookMarked,
+  },
+  {
+    href: "/keuangan/beban",
+    label: "Beban Operasional",
+    roles: ["owner", "keuangan"],
+    icon: Receipt,
+  },
+  {
+    href: "/keuangan/laporan",
+    label: "Laporan Keuangan",
+    roles: ["owner", "keuangan"],
+    icon: TrendingUp,
   },
 ];
 
