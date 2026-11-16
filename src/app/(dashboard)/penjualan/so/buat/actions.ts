@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { salesOrders, salesOrderItems } from "@/db/schema/sales";
 import { customers, products } from "@/db/schema/master";
 import { revalidatePath } from "next/cache";
+import { requireRole } from "@/lib/auth-guard";
 
 // 1. Mengambil data dari Modul Master & Inventory
 export async function getFormOptions() {
@@ -36,6 +37,9 @@ export async function getFormOptions() {
 // 2. Menyimpan Transaksi SO dan Detail Itemnya (Database Transaction)
 export async function createSO(data: any) {
   try {
+    // NF-3 — hanya owner & sales boleh membuat SO (PRD §3 matriks akses M4)
+    await requireRole(["owner", "sales"]);
+
     // Membungkus dalam transaksi agar jika detail gagal, master ikut dibatalkan
     await db.transaction(async (tx) => {
       // Generate Nomor SO sederhana (Format: SO/YYYY/MM/RND)

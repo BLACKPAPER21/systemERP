@@ -5,6 +5,7 @@ import { salesOrders, salesOrderItems, invoices } from "@/db/schema/sales";
 import { customers, products, users } from "@/db/schema/master";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireRole } from "@/lib/auth-guard";
 
 // 1. Mengambil Detail Data Master & Item
 export async function getDetailSO(id: number) {
@@ -54,6 +55,9 @@ export async function getDetailSO(id: number) {
 // 2. Fungsi Konfirmasi Pesanan (Update Status)
 export async function confirmSO(id: number) {
   try {
+    // NF-3 — konfirmasi SO: owner & sales (PRD §3 matriks akses M4)
+    await requireRole(["owner", "sales"]);
+
     await db.update(salesOrders)
       .set({ status: "confirmed" })
       .where(eq(salesOrders.id, id));
@@ -71,6 +75,9 @@ export async function confirmSO(id: number) {
 // 3. Fungsi Transaksional: Buat Invoice & Potong Stok Inventory
 export async function generateInvoiceAndCutStock(soId: number) {
   try {
+    // NF-3 — penerbitan invoice: owner & sales (PRD §3 matriks akses M4)
+    await requireRole(["owner", "sales"]);
+
     // Memulai Database Transaction (Jika 1 gagal, semua di-rollback)
     await db.transaction(async (tx) => {
       // A. Ambil & Validasi Data SO
