@@ -5,20 +5,18 @@ import { getDetailSO } from "./actions";
 import { formatRupiah } from "@/lib/format";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import SOActionButtons from "./action-buttons";
+import { PrintPDFButton } from "./print-pdf-button";
 
 export const metadata = {
   title: "Detail Sales Order | SystemERP",
 };
 
-// Fungsi helper status badge
-// PERBAIKAN: Menambahkan tipe Promise pada params sesuai standar Next.js terbaru
 export default async function DetailSOPage({ params }: { params: Promise<{ id: string }> }) {
-  // PERBAIKAN: Gunakan await untuk meng-unwrap params sebelum mengakses .id
   const resolvedParams = await params;
   const soId = parseInt(resolvedParams.id, 10);
-  
+
   const { success, data, error } = await getDetailSO(soId);
 
   if (!success || !data) {
@@ -38,17 +36,35 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  const serializedItems = (data.items || []).map((item) => ({
+    id: item.id,
+    productId: item.productId,
+    namaProduk: item.namaProduk ?? "Produk Tidak Dikenal",
+    hargaSatuan: String(item.hargaSatuan ?? 0),
+    qty: String(item.qty ?? 0),
+    subtotal: String(item.subtotal ?? 0),
+  }));
+
+  const serializedInvoice = data.invoice
+    ? {
+        id: data.invoice.id,
+        nomor: String(data.invoice.nomor ?? ""),
+        tanggal: String(data.invoice.tanggal ?? ""),
+        jatuhTempo: String(data.invoice.jatuhTempo ?? ""),
+        total: String(data.invoice.total ?? data.total ?? 0),
+        status: String(data.invoice.status ?? ""),
+        statusBayar: String(data.invoice.statusBayar ?? "belum"),
+      }
+    : null;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
-      {/* HEADER NAVIGASI */}
       <PageHeader
         judul={`Detail SO: ${data.nomor}`}
         deskripsi="Rincian informasi dokumen Sales Order."
         aksi={
           <>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Printer className="h-4 w-4" /> Cetak PDF
-            </Button>
+            <PrintPDFButton data={{ ...data, items: serializedItems }} />
             <Link href="/penjualan/so">
               <Button variant="outline" className="flex items-center gap-2 bg-gray-50">
                 <ArrowLeft className="h-4 w-4" /> Kembali
@@ -58,10 +74,7 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
         }
       />
 
-      {/* DOKUMEN UTAMA */}
       <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
-        
-        {/* INFO MASTER (HEADER DOKUMEN) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 border-b bg-gray-50/50">
           <div>
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Nomor SO</p>
@@ -83,7 +96,6 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* TABEL ITEM BARANG */}
         <div className="p-6">
           <h3 className="font-semibold text-gray-800 mb-4">Rincian Barang / Produk</h3>
           <div className="border rounded-lg overflow-hidden">
@@ -98,7 +110,7 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((item, index) => (
+                {serializedItems.map((item, index) => (
                   <TableRow key={item.id} className="hover:bg-gray-50">
                     <TableCell className="text-center text-gray-500">{index + 1}</TableCell>
                     <TableCell className="font-medium">{item.namaProduk || "Produk Tidak Dikenal"}</TableCell>
@@ -116,12 +128,18 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* FOOTER & ACTION BUTTONS */}
         <div className="p-6 border-t bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
-          {/* Action Buttons Dinamis (Client Component) */}
-          <SOActionButtons soId={data.id} status={data.status} />
+          <SOActionButtons
+            soId={data.id}
+            nomorSO={data.nomor}
+            tanggalSO={String(data.tanggal)}
+            namaCustomer={data.namaCustomer}
+            totalSO={String(data.total)}
+            items={serializedItems}
+            invoice={serializedInvoice}
+            status={data.status}
+          />
 
-          {/* Grand Total */}
           <div className="text-right bg-white p-4 rounded-xl border shadow-sm w-full md:w-auto min-w-[250px]">
             <p className="text-sm text-gray-500 font-medium mb-1">Total Tagihan SO</p>
             <h2 className="text-3xl font-bold text-blue-600">
@@ -130,7 +148,6 @@ export default async function DetailSOPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Info Pembuat */}
         <div className="px-6 py-3 border-t bg-gray-100 text-xs text-gray-400 text-right">
           Dokumen dibuat oleh: {data.dibuatOleh || "Sistem"}
         </div>

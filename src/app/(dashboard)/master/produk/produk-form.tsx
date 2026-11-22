@@ -1,15 +1,12 @@
 "use client";
 
-/* Form tambah/ubah Produk — wilayah M1.
- * PENTING (PRD §8.2, ceklis B.2): form TIDAK MEMILIH input
- * `stok_saat_ini` dan `harga_pokok_rata_rata` — kedua kolom dihitung oleh M3.
- */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormDialog, useFormDialog } from "@/components/shared/form-dialog";
+import { formatAngka } from "@/lib/format";
 import { simpanProduk } from "./actions";
 
 export interface BarisProduk {
@@ -19,6 +16,7 @@ export interface BarisProduk {
   satuan: string;
   hargaJual: string;
   stokMinimum: string;
+  stokSaatIni?: string;
   aktif: boolean;
 }
 
@@ -26,7 +24,7 @@ export function ProdukFormDialog({
   baris,
   trigger,
 }: {
-  baris?: BarisProduk; // undefined → tambah baru
+  baris?: BarisProduk;
   trigger: React.ReactNode;
 }) {
   const router = useRouter();
@@ -37,8 +35,26 @@ export function ProdukFormDialog({
     satuan: baris?.satuan ?? "",
     hargaJual: baris ? String(baris.hargaJual) : "",
     stokMinimum: baris ? String(baris.stokMinimum) : "",
+    tambahStok: "",
     aktif: baris?.aktif ?? true,
   });
+
+  const stokAwal = Number(baris?.stokSaatIni ?? 0);
+  const parsedTambah = Number((form.tambahStok || "0").replace(",", "."));
+  const tambahAman = Number.isNaN(parsedTambah) ? 0 : Math.max(0, parsedTambah);
+  const stokSesudah = stokAwal + tambahAman;
+
+  function resetFormFromBaris(target?: BarisProduk) {
+    setForm({
+      sku: target?.sku ?? "",
+      nama: target?.nama ?? "",
+      satuan: target?.satuan ?? "",
+      hargaJual: target ? String(target.hargaJual) : "",
+      stokMinimum: target ? String(target.stokMinimum) : "",
+      tambahStok: "",
+      aktif: target?.aktif ?? true,
+    });
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -50,6 +66,7 @@ export function ProdukFormDialog({
       satuan: form.satuan,
       hargaJual: form.hargaJual,
       stokMinimum: form.stokMinimum,
+      tambahStok: baris ? form.tambahStok : "0",
       aktif: form.aktif,
     });
     setProses(false);
@@ -70,17 +87,14 @@ export function ProdukFormDialog({
         open={open}
         onOpenChange={(o) => {
           setOpen(o);
-          if (o && baris) setForm({
-            sku: baris.sku,
-            nama: baris.nama,
-            satuan: baris.satuan,
-            hargaJual: String(baris.hargaJual),
-            stokMinimum: String(baris.stokMinimum),
-            aktif: baris.aktif,
-          });
+          if (o) resetFormFromBaris(baris);
         }}
         judul={baris ? "Ubah Produk" : "Tambah Produk"}
-        deskripsi="Isi data produk. Stok dan harga pokok rata-rata dikelola modul Persediaan secara otomatis."
+        deskripsi={
+          baris
+            ? "Ubah informasi produk dan isikan jumlah stok yang ingin ditambahkan jika ada penambahan stok."
+            : "Isi data produk baru."
+        }
         galat={galat}
         proses={proses}
         onSubmit={onSubmit}
@@ -145,6 +159,29 @@ export function ProdukFormDialog({
               />
             </div>
           </div>
+
+          {baris && (
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Stok Saat Ini: <strong className="text-foreground">{formatAngka(stokAwal)}</strong></span>
+                <span>Total Setelah Tambah: <strong className="text-foreground">{formatAngka(stokSesudah)}</strong></span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tambahStok">Tambah Stok</Label>
+                <Input
+                  id="tambahStok"
+                  type="text"
+                  inputMode="decimal"
+                  value={form.tambahStok}
+                  onChange={(e) =>
+                    setForm({ ...form, tambahStok: e.target.value.replace(/[^0-9.,]/g, "") })
+                  }
+                  placeholder="0 (ketik jumlah stok yang ingin ditambah)"
+                />
+              </div>
+            </div>
+          )}
+
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

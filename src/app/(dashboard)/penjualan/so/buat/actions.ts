@@ -6,6 +6,26 @@ import { customers, products } from "@/db/schema/master";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth-guard";
 
+export interface CreateSOItemInput {
+  productId: string | number;
+  qty: number;
+  harga: number;
+  subtotal: number;
+}
+
+export interface CreateSOPayload {
+  customerId: string | number;
+  tanggal: string;
+  total: number;
+  metodePembayaran?: "cash" | "utang";
+  jumlahCicilan?: number;
+  tenggat?: string | null;
+  bayarAwal?: number;
+  sisaPiutang?: number;
+  statusPelunasan?: "Lunas" | "Belum Lunas";
+  items: CreateSOItemInput[];
+}
+
 // 1. Mengambil data dari Modul Master & Inventory
 export async function getFormOptions() {
   try {
@@ -13,13 +33,12 @@ export async function getFormOptions() {
       .select({ id: customers.id, nama: customers.nama })
       .from(customers);
 
-    // Menarik produk dari inventory beserta harga dan stoknya
     const listProduct = await db
-      .select({ 
-        id: products.id, 
-        nama: products.nama, 
+      .select({
+        id: products.id,
+        nama: products.nama,
         hargaJual: products.hargaJual,
-        stok: products.stokSaatIni 
+        stok: products.stokSaatIni,
       })
       .from(products);
 
@@ -35,31 +54,42 @@ export async function getFormOptions() {
 }
 
 // 2. Menyimpan Transaksi SO dan Detail Itemnya (Database Transaction)
-export async function createSO(data: any) {
+export async function createSO(data: CreateSOPayload) {
   try {
-    // NF-3 — hanya owner & sales boleh membuat SO (PRD §3 matriks akses M4)
     await requireRole(["owner", "sales"]);
 
-    // Membungkus dalam transaksi agar jika detail gagal, master ikut dibatalkan
+    const metode = data.metodePembayaran === "utang" ? "utang" : "cash";
+    const totalNilai = Math.max(0, Number(data.total || 0));
+    const jumlahCicilan =
+      metode === "utang" ? Math.max(1, Number(data.jumlahCicilan || 1)) : 1;
+    const tenggat = metode === "utang" ? data.tenggat || null : null;
+    const bayarAwal =
+      metode === "cash"
+        ? totalNilai
+        : Math.max(0, Math.min(Number(data.bayarAwal || 0), totalNilai));
+    const sisaPiutang =
+      metode === "cash" ? 0 : Math.max(0, totalNilai - bayarAwal);
+
     await db.transaction(async (tx) => {
-      // Generate Nomor SO sederhana (Format: SO/YYYY/MM/RND)
-      // Jika Anda memiliki services/numbering.ts, Anda bisa menggantinya nanti.
       const date = new Date();
       const random = Math.floor(1000 + Math.random() * 9000);
-      const nomorSO = `SO/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${random}`;
+      const nomorSO = `SO/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${random}`;
 
-      // Insert ke tabel Master (sales_orders)
-      const [newSo] = await tx.insert(salesOrders).values({
-        nomor: nomorSO,
-        customerId: Number(data.customerId),
-        tanggal: data.tanggal,
-        status: "draft",
-        total: String(data.total),
-        dibuatOleh: 1, // HARDCODE SEMENTARA: Ganti dengan ID User (Auth Session) nanti
-      }).returning({ id: salesOrders.id });
+      // TODO: Jika kolom metodePembayaran, jumlahCicilan, tenggat, bayarAwal, sisaPiutang
+      // sudah ditambahkan ke tabel `salesOrders` di `src/db/schema/sales.ts`, petakan di sini.
+      const [newSo] = await tx
+        .insert(salesOrders)
+        .values({
+          nomor: nomorSO,
+          customerId: Number(data.customerId),
+          tanggal: data.tanggal,
+          status: "draft",
+          total: String(totalNilai),
+          dibuatOleh: 1,
+        })
+        .returning({ id: salesOrders.id });
 
-      // Siapkan array data untuk tabel Detail (sales_order_items)
-      const itemsToInsert = data.items.map((item: any) => ({
+      const itemsToInsert = data.items.map((item) => ({
         soId: newSo.id,
         productId: Number(item.productId),
         qty: String(item.qty),
@@ -67,14 +97,20 @@ export async function createSO(data: any) {
         subtotal: String(item.subtotal),
       }));
 
-      // Insert ke tabel Detail
       await tx.insert(salesOrderItems).values(itemsToInsert);
     });
 
-    // Refresh cache agar tabel di halaman depan langsung terupdate
     revalidatePath("/penjualan/so");
-    return { success: true };
-
+    return {
+      success: true,
+      pembayaran: {
+        metodePembayaran: metode,
+        jumlahCicilan,
+        tenggat,
+        bayarAwal,
+        sisaPiutang,
+      },
+    };
   } catch (error) {
     console.error("Gagal menyimpan Sales Order:", error);
     return { success: false, error: "Terjadi kesalahan sistem saat menyimpan data." };

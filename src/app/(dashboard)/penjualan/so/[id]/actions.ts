@@ -3,11 +3,11 @@
 import { db } from "@/db";
 import { salesOrders, salesOrderItems, invoices } from "@/db/schema/sales";
 import { customers, products, users } from "@/db/schema/master";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth-guard";
 
-// 1. Mengambil Detail Data Master & Item
+// 1. Mengambil Detail Data Master, Item, & Invoice Terkait
 export async function getDetailSO(id: number) {
   try {
     const [so] = await db
@@ -42,9 +42,24 @@ export async function getDetailSO(id: number) {
       .leftJoin(products, eq(salesOrderItems.productId, products.id))
       .where(eq(salesOrderItems.soId, id));
 
+    const [invoice] = await db
+      .select({
+        id: invoices.id,
+        nomor: invoices.nomor,
+        tanggal: invoices.tanggal,
+        jatuhTempo: invoices.jatuhTempo,
+        total: invoices.total,
+        status: invoices.status,
+        statusBayar: invoices.statusBayar,
+      })
+      .from(invoices)
+      .where(eq(invoices.soId, id))
+      .orderBy(desc(invoices.id))
+      .limit(1);
+
     return {
       success: true,
-      data: { ...so, items },
+      data: { ...so, items, invoice: invoice ?? null },
     };
   } catch (error) {
     console.error("Gagal mengambil detail SO:", error);
@@ -61,10 +76,10 @@ export async function confirmSO(id: number) {
     await db.update(salesOrders)
       .set({ status: "confirmed" })
       .where(eq(salesOrders.id, id));
-      
+
     revalidatePath(`/penjualan/so/${id}`);
     revalidatePath(`/penjualan/so`);
-    
+
     return { success: true };
   } catch (error) {
     console.error("Gagal update status SO:", error);
@@ -116,7 +131,7 @@ export async function generateInvoiceAndCutStock(soId: number) {
       // D. Generate Dokumen Invoice
       const date = new Date();
       const randomStr = Math.floor(1000 + Math.random() * 9000);
-      const nomorInvoice = `INV/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${randomStr}`;
+      const nomorInvoice = `INV/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${randomStr}`;
 
       // Jatuh tempo diset otomatis 30 hari dari sekarang
       const jatuhTempo = new Date(date);
@@ -129,7 +144,7 @@ export async function generateInvoiceAndCutStock(soId: number) {
         jatuhTempo: jatuhTempo.toISOString().split("T")[0],
         total: so.total,
         totalHpp: String(totalHpp), // Direkam untuk modul Keuangan (Jurnal 4) nantinya
-        status: "posted", 
+        status: "posted",
         statusBayar: "belum",
       });
 

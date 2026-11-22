@@ -4,10 +4,9 @@
  * NF-3: requireRole() dipanggil di baris pertama setiap aksi.
  * NF-4: validasi Zod di sisi server.
  * NF-10: setiap create/update tercatat logAudit().
- * §8.2: aksi TIDAK PERNAH menulis stok_saat_ini / harga_pokok_rata_rata.
  */
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { products } from "@/db/schema";
@@ -18,7 +17,15 @@ import type { AksiHasil } from "@/lib/aksi";
 
 export async function simpanProduk(
   id: number | null,
-  raw: { sku: string; nama: string; satuan: string; hargaJual: string; stokMinimum: string; aktif: boolean },
+  raw: {
+    sku: string;
+    nama: string;
+    satuan: string;
+    hargaJual: string;
+    stokMinimum: string;
+    aktif: boolean;
+    tambahStok?: string;
+  },
 ): Promise<AksiHasil> {
   const sesi = await requireRole(["owner"]);
 
@@ -31,6 +38,18 @@ export async function simpanProduk(
     return { ok: false, pesan: parsed.error.issues[0]?.message ?? "Data tidak valid." };
   }
   const v = parsed.data;
+
+  const rawTambahStok = raw.tambahStok?.trim() ?? "";
+  let tambahStokAngka = 0;
+  if (rawTambahStok !== "") {
+    tambahStokAngka = Number(rawTambahStok.replace(",", "."));
+    if (Number.isNaN(tambahStokAngka) || !Number.isFinite(tambahStokAngka)) {
+      return { ok: false, pesan: "Jumlah tambah stok tidak valid." };
+    }
+    if (tambahStokAngka < 0) {
+      return { ok: false, pesan: "Jumlah tambah stok tidak boleh negatif." };
+    }
+  }
 
   if (id === null) {
     const bentrok = await db
@@ -61,7 +80,7 @@ export async function simpanProduk(
       detail: { sku: v.sku, nama: v.nama },
     });
   } else {
-    const sesi = await requireRole(["owner"]);
+    const nilaiTambah = tambahStokAngka.toFixed(2);
     await db
       .update(products)
       .set({
@@ -70,14 +89,23 @@ export async function simpanProduk(
         hargaJual: v.hargaJual.toFixed(2),
         stokMinimum: v.stokMinimum.toFixed(2),
         aktif: v.aktif,
+        ...(tambahStokAngka > 0
+          ? { stokSaatIni: sql`COALESCE(${products.stokSaatIni}, 0) + ${nilaiTambah}` }
+          : {}),
       })
       .where(eq(products.id, id));
+
     await logAudit(db, {
       userId: sesi.userId,
       aksi: "update",
       entitas: "products",
       entitasId: id,
-      detail: { sku: v.sku, nama: v.nama, aktif: v.aktif },
+      detail: {
+        sku: v.sku,
+        nama: v.nama,
+        aktif: v.aktif,
+        ...(tambahStokAngka > 0 ? { tambahStok: nilaiTambah } : {}),
+      },
     });
   }
 

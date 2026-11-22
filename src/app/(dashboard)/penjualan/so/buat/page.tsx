@@ -8,11 +8,9 @@ export const metadata = {
 };
 
 export default async function BuatSOPage() {
-  // NF-3 — hanya owner & sales boleh membuat SO (PRD §3 matriks akses M4)
   const akses = await pageAccess(["owner", "sales"]);
   if (!akses.ok) return <AksesDitolak pesan={akses.pesan} />;
 
-  // Mengambil data pelanggan dan produk (Inventory) secara SSR (Server-Side)
   const masterData = await getFormOptions();
 
   return (

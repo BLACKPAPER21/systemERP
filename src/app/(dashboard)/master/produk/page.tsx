@@ -1,7 +1,3 @@
-/* Halaman daftar Produk — wilayah M1 (PRD §5.1, tata letak NF-19).
- * Kolom `stok_saat_ini` & `harga_pokok_rata_rata` hanya DIBACA (§8.2):
- * tidak ada input, tidak ada tulis — sepenuhnya milik M3.
- */
 import { and, asc, count, eq, ilike, or, SQL } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -36,7 +32,7 @@ export default async function ProdukPage({
   if (!akses.ok) return <AksesDitolak pesan={akses.pesan} />;
 
   const sp = await searchParams;
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const halaman = Math.max(1, Number(sp.halaman ?? 1) || 1);
 
@@ -50,18 +46,31 @@ export default async function ProdukPage({
   if (status === "nonaktif") filters.push(eq(products.aktif, false));
   const where = filters.length > 0 ? and(...filters) : undefined;
 
-  const [baris, hitung] = await Promise.all([
-    db
+  let baris: (typeof products.$inferSelect)[] = [];
+  let total = 0;
+  let dbError: string | null = null;
+
+  try {
+    baris = await db
       .select()
       .from(products)
       .where(where)
       .orderBy(asc(products.sku))
       .limit(PER_HALAMAN)
-      .offset((halaman - 1) * PER_HALAMAN),
-    db.select({ total: count() }).from(products).where(where),
-  ]);
+      .offset((halaman - 1) * PER_HALAMAN);
 
-  const total = Number(hitung[0]?.total ?? 0);
+    const hitung = await db
+      .select({ total: count() })
+      .from(products)
+      .where(where);
+
+    total = Number(hitung[0]?.total ?? 0);
+  } catch (err) {
+    console.error("Gagal memuat data produk:", err);
+    dbError =
+      "Gagal memuat data produk dari database. Periksa koneksi database atau status migrasi tabel products.";
+  }
+
   const bolehUbah = akses.sesi.peran === "owner";
 
   return (
@@ -99,73 +108,82 @@ export default async function ProdukPage({
         </Button>
       </form>
 
-      <div className="rounded-lg border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SKU</TableHead>
-              <TableHead>Nama</TableHead>
-              <TableHead>Satuan</TableHead>
-              <TableHead className="text-right">Harga Jual</TableHead>
-              <TableHead className="text-right">Stok Saat Ini</TableHead>
-              <TableHead className="text-right">Stok Minimum</TableHead>
-              <TableHead>Status</TableHead>
-              {bolehUbah ? <TableHead className="w-[90px]">Ubah</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {baris.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={bolehUbah ? 8 : 7} className="text-center text-muted-foreground">
-                  Belum ada produk. Tambahkan produk pertama Anda.
-                </TableCell>
-              </TableRow>
-            ) : (
-              baris.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.sku}</TableCell>
-                  <TableCell>{p.nama}</TableCell>
-                  <TableCell>{p.satuan}</TableCell>
-                  <TableCell className="text-right">{formatRupiah(p.hargaJual)}</TableCell>
-                  <TableCell className="text-right">{formatAngka(p.stokSaatIni)}</TableCell>
-                  <TableCell className="text-right">{formatAngka(p.stokMinimum)}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={p.aktif ? "aktif" : "nonaktif"} />
-                  </TableCell>
-                  {bolehUbah ? (
-                    <TableCell>
-                      <ProdukFormDialog
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            Ubah
-                          </Button>
-                        }
-                        baris={{
-                          id: p.id,
-                          sku: p.sku,
-                          nama: p.nama,
-                          satuan: p.satuan,
-                          hargaJual: String(p.hargaJual),
-                          stokMinimum: String(p.stokMinimum),
-                          aktif: p.aktif,
-                        }}
-                      />
-                    </TableCell>
-                  ) : null}
+      {dbError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {dbError}
+        </div>
+      ) : (
+        <>
+          <div className="rounded-lg border bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Satuan</TableHead>
+                  <TableHead className="text-right">Harga Jual</TableHead>
+                  <TableHead className="text-right">Stok Saat Ini</TableHead>
+                  <TableHead className="text-right">Stok Minimum</TableHead>
+                  <TableHead>Status</TableHead>
+                  {bolehUbah ? <TableHead className="w-[90px]">Ubah</TableHead> : null}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {baris.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={bolehUbah ? 8 : 7} className="text-center text-muted-foreground">
+                      Belum ada produk. Tambahkan produk pertama Anda.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  baris.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.sku}</TableCell>
+                      <TableCell>{p.nama}</TableCell>
+                      <TableCell>{p.satuan}</TableCell>
+                      <TableCell className="text-right">{formatRupiah(p.hargaJual)}</TableCell>
+                      <TableCell className="text-right">{formatAngka(p.stokSaatIni)}</TableCell>
+                      <TableCell className="text-right">{formatAngka(p.stokMinimum)}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={p.aktif ? "aktif" : "nonaktif"} />
+                      </TableCell>
+                      {bolehUbah ? (
+                        <TableCell>
+                          <ProdukFormDialog
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                Ubah
+                              </Button>
+                            }
+                            baris={{
+                              id: p.id,
+                              sku: p.sku,
+                              nama: p.nama,
+                              satuan: p.satuan,
+                              hargaJual: String(p.hargaJual),
+                              stokMinimum: String(p.stokMinimum),
+                              stokSaatIni: String(p.stokSaatIni),
+                              aktif: p.aktif,
+                            }}
+                          />
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-      <Pagination
-        basePath="/master/produk"
-        halaman={halaman}
-        perHalaman={PER_HALAMAN}
-        total={total}
-        filters={{ q, status }}
-      />
+          <Pagination
+            basePath="/master/produk"
+            halaman={halaman}
+            perHalaman={PER_HALAMAN}
+            total={total}
+            filters={{ q, status }}
+          />
+        </>
+      )}
     </div>
   );
 }

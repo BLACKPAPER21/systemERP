@@ -48,12 +48,6 @@ const MENU: MenuItem[] = [
   },
   // ---- M1 — Master Data (baris milik M1) ----
   {
-    href: "/master/produk",
-    label: "Produk",
-    roles: ["owner", "gudang", "sales", "keuangan"],
-    icon: Boxes,
-  },
-  {
     href: "/master/supplier",
     label: "Supplier",
     roles: ["owner", "gudang", "keuangan"],
@@ -94,7 +88,7 @@ const MENU: MenuItem[] = [
   {
     href: "/persediaan/kartu-stok",
     label: "Kartu Stok",
-    roles: ["owner", "gudang", "sales", "keuangan"],
+    roles: ["owner", "gudang", "keuangan"],
     icon: Boxes,
   },
   // ---- M4 — Penjualan (baris milik M4) ----
