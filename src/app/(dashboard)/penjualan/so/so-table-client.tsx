@@ -18,11 +18,16 @@ import {
 } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import { SOActionMenu } from "./so-action-menu";
-import type { OpsiPelangganSO, PesananPenjualanItem } from "./actions";
+import type {
+  OpsiPelangganSO,
+  OpsiProdukSO,
+  PesananPenjualanItem,
+} from "./actions";
 
 interface SOTableClientProps {
   data: PesananPenjualanItem[];
   customers: OpsiPelangganSO[];
+  products: OpsiProdukSO[];
   error?: string;
 }
 
@@ -68,7 +73,12 @@ function ringkasDaftarBayar(row: PesananPenjualanItem): string {
   return `${formatRupiah(Number(row.totalBayar || 0))} — ${detail}`;
 }
 
-export function SOTableClient({ data, customers, error }: SOTableClientProps) {
+export function SOTableClient({
+  data,
+  customers,
+  products,
+  error,
+}: SOTableClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -616,7 +626,11 @@ export function SOTableClient({ data, customers, error }: SOTableClientProps) {
                           </Button>
                         </Link>
 
-                        <SOActionMenu row={row} customers={customers} />
+                        <SOActionMenu
+                          row={row}
+                          customers={customers}
+                          products={products}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
