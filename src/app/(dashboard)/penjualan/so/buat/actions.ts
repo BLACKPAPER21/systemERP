@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { salesOrders, salesOrderItems } from "@/db/schema/sales";
 import { customers, products } from "@/db/schema/master";
+import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth-guard";
 
@@ -58,25 +59,59 @@ export async function createSO(data: CreateSOPayload) {
   try {
     await requireRole(["owner", "sales"]);
 
+    // Validasi stok di server sebelum transaksi
+    const totalQtyPerProduk = new Map<number, number>();
+    for (const item of data.items) {
+      const prodId = Number(item.productId);
+      const qty = Number(item.qty || 0);
+      totalQtyPerProduk.set(prodId, (totalQtyPerProduk.get(prodId) || 0) + qty);
+    }
+
+    const productIds = Array.from(totalQtyPerProduk.keys());
+    if (productIds.length > 0) {
+      const dbProducts = await db
+        .select({
+          id: products.id,
+          nama: products.nama,
+          stok: products.stokSaatIni,
+        })
+        .from(products)
+        .where(inArray(products.id, productIds));
+
+      const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+      for (const [prodId, totalQtyDiminta] of totalQtyPerProduk.entries()) {
+        const produkDb = productMap.get(prodId);
+        if (!produkDb) {
+          return { success: false, error: "Salah satu produk tidak ditemukan di database." };
+        }
+        const stokTersedia = Number(produkDb.stok || 0);
+        if (totalQtyDiminta > stokTersedia) {
+          return {
+            success: false,
+            error: `Jumlah stok tidak mencukupi untuk produk "${produkDb.nama}" (Tersedia: ${stokTersedia}, Diminta: ${totalQtyDiminta}).`,
+          };
+        }
+      }
+    }
+
     const metode = data.metodePembayaran === "utang" ? "utang" : "cash";
     const totalNilai = Math.max(0, Number(data.total || 0));
     const jumlahCicilan =
       metode === "utang" ? Math.max(1, Number(data.jumlahCicilan || 1)) : 1;
     const tenggat = metode === "utang" ? data.tenggat || null : null;
+    // Untuk Cash, bayarAwal disimpan 0 karena baru lunas setelah dikonfirmasi & invoice diterbitkan
     const bayarAwal =
-      metode === "cash"
-        ? totalNilai
-        : Math.max(0, Math.min(Number(data.bayarAwal || 0), totalNilai));
-    const sisaPiutang =
-      metode === "cash" ? 0 : Math.max(0, totalNilai - bayarAwal);
+      metode === "utang"
+        ? Math.max(0, Math.min(Number(data.bayarAwal || 0), totalNilai))
+        : 0;
+    const sisaPiutang = Math.max(0, totalNilai - bayarAwal);
 
     await db.transaction(async (tx) => {
       const date = new Date();
       const random = Math.floor(1000 + Math.random() * 9000);
       const nomorSO = `SO/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${random}`;
 
-      // TODO: Jika kolom metodePembayaran, jumlahCicilan, tenggat, bayarAwal, sisaPiutang
-      // sudah ditambahkan ke tabel `salesOrders` di `src/db/schema/sales.ts`, petakan di sini.
       const [newSo] = await tx
         .insert(salesOrders)
         .values({
@@ -85,6 +120,10 @@ export async function createSO(data: CreateSOPayload) {
           tanggal: data.tanggal,
           status: "draft",
           total: String(totalNilai),
+          metodePembayaran: metode,
+          jumlahCicilan,
+          tenggat,
+          bayarAwal: String(bayarAwal),
           dibuatOleh: 1,
         })
         .returning({ id: salesOrders.id });

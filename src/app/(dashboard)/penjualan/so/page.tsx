@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   getPesananPenjualan,
   type OpsiPelangganSO,
+  type OpsiProdukSO,
   type PesananPenjualanItem,
 } from "./actions";
 import { Plus, FileText, DollarSign, ShoppingCart, Clock } from "lucide-react";
@@ -15,9 +16,17 @@ export const metadata = {
 };
 
 export default async function PesananPenjualanPage() {
-  const { data: pesanan, customers, ringkasan, error } = await getPesananPenjualan();
+  const {
+    data: pesanan,
+    customers,
+    products,
+    ringkasan,
+    error,
+  } = await getPesananPenjualan();
+
   const daftarPesanan = (pesanan || []) as PesananPenjualanItem[];
   const daftarCustomer = (customers || []) as OpsiPelangganSO[];
+  const daftarProduk = (products || []) as OpsiProdukSO[];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -82,7 +91,12 @@ export default async function PesananPenjualanPage() {
         </div>
       </div>
 
-      <SOTableClient data={daftarPesanan} customers={daftarCustomer} error={error} />
+      <SOTableClient
+        data={daftarPesanan}
+        customers={daftarCustomer}
+        products={daftarProduk}
+        error={error}
+      />
     </div>
   );
 }

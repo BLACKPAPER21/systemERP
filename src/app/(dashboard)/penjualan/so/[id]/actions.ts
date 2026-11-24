@@ -17,6 +17,7 @@ export async function getDetailSO(id: number) {
         tanggal: salesOrders.tanggal,
         status: salesOrders.status,
         total: salesOrders.total,
+        metodePembayaran: salesOrders.metodePembayaran,
         namaCustomer: customers.nama,
         dibuatOleh: users.nama,
       })
@@ -70,10 +71,10 @@ export async function getDetailSO(id: number) {
 // 2. Fungsi Konfirmasi Pesanan (Update Status)
 export async function confirmSO(id: number) {
   try {
-    // NF-3 — konfirmasi SO: owner & sales (PRD §3 matriks akses M4)
     await requireRole(["owner", "sales"]);
 
-    await db.update(salesOrders)
+    await db
+      .update(salesOrders)
       .set({ status: "confirmed" })
       .where(eq(salesOrders.id, id));
 
@@ -90,40 +91,48 @@ export async function confirmSO(id: number) {
 // 3. Fungsi Transaksional: Buat Invoice & Potong Stok Inventory
 export async function generateInvoiceAndCutStock(soId: number) {
   try {
-    // NF-3 — penerbitan invoice: owner & sales (PRD §3 matriks akses M4)
     await requireRole(["owner", "sales"]);
 
-    // Memulai Database Transaction (Jika 1 gagal, semua di-rollback)
     await db.transaction(async (tx) => {
       // A. Ambil & Validasi Data SO
       const [so] = await tx.select().from(salesOrders).where(eq(salesOrders.id, soId));
       if (!so) throw new Error("Sales Order tidak ditemukan.");
-      if (so.status !== "confirmed") throw new Error("Hanya SO berstatus CONFIRMED yang dapat di-invoice.");
+      if (so.status !== "confirmed") {
+        throw new Error("Hanya SO berstatus CONFIRMED yang dapat di-invoice.");
+      }
 
       // B. Ambil Detail Item
-      const items = await tx.select().from(salesOrderItems).where(eq(salesOrderItems.soId, soId));
+      const items = await tx
+        .select()
+        .from(salesOrderItems)
+        .where(eq(salesOrderItems.soId, soId));
       if (items.length === 0) throw new Error("Tidak ada item barang dalam pesanan ini.");
 
       let totalHpp = 0;
 
       // C. Loop Item untuk Potong Stok & Hitung HPP
       for (const item of items) {
-        const [prod] = await tx.select().from(products).where(eq(products.id, item.productId));
+        const [prod] = await tx
+          .select()
+          .from(products)
+          .where(eq(products.id, item.productId));
         if (!prod) throw new Error(`Data produk dengan ID ${item.productId} tidak ditemukan.`);
 
-        // Validasi ketersediaan stok fisik di gudang
         if (Number(prod.stokSaatIni) < Number(item.qty)) {
-          throw new Error(`Stok produk "${prod.nama}" tidak mencukupi! Sisa: ${prod.stokSaatIni}, Diminta: ${item.qty}`);
+          throw new Error(
+            `Stok produk "${prod.nama}" tidak mencukupi! Sisa: ${prod.stokSaatIni}, Diminta: ${item.qty}`
+          );
         }
 
-        // Kalkulasi HPP (Asumsi: Menggunakan hargaBeli jika ada, atau 70% dari hargaJual sebagai estimasi jika kolom hargaBeli kosong)
         // @ts-ignore - Toleransi jika kolom hargaBeli belum didefinisikan secara strict di schema
-        const hppSatuan = prod.hargaBeli ? Number(prod.hargaBeli) : Number(prod.hargaJual) * 0.7;
+        const hppSatuan = prod.hargaBeli
+          ? Number(prod.hargaBeli)
+          : Number(prod.hargaJual) * 0.7;
         const subtotalHpp = Number(item.qty) * hppSatuan;
         totalHpp += subtotalHpp;
 
-        // Eksekusi Potong Stok (Inventory Out)
-        await tx.update(products)
+        await tx
+          .update(products)
           .set({ stokSaatIni: sql`${products.stokSaatIni} - ${item.qty}` })
           .where(eq(products.id, item.productId));
       }
@@ -133,9 +142,11 @@ export async function generateInvoiceAndCutStock(soId: number) {
       const randomStr = Math.floor(1000 + Math.random() * 9000);
       const nomorInvoice = `INV/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${randomStr}`;
 
-      // Jatuh tempo diset otomatis 30 hari dari sekarang
       const jatuhTempo = new Date(date);
       jatuhTempo.setDate(jatuhTempo.getDate() + 30);
+
+      // Jika metode pembayaran Cash, invoice otomatis berstatus "lunas" saat diterbitkan
+      const isCash = (so.metodePembayaran || "").toLowerCase() === "cash";
 
       await tx.insert(invoices).values({
         nomor: nomorInvoice,
@@ -143,25 +154,27 @@ export async function generateInvoiceAndCutStock(soId: number) {
         tanggal: date.toISOString().split("T")[0],
         jatuhTempo: jatuhTempo.toISOString().split("T")[0],
         total: so.total,
-        totalHpp: String(totalHpp), // Direkam untuk modul Keuangan (Jurnal 4) nantinya
+        totalHpp: String(totalHpp),
         status: "posted",
-        statusBayar: "belum",
+        statusBayar: isCash ? "lunas" : "belum",
       });
 
       // E. Update Status SO
-      await tx.update(salesOrders)
+      await tx
+        .update(salesOrders)
         .set({ status: "invoiced" })
         .where(eq(salesOrders.id, so.id));
     });
 
-    // Refresh Cache UI
     revalidatePath(`/penjualan/so/${soId}`);
     revalidatePath(`/penjualan/so`);
+    revalidatePath(`/penjualan/so/invoice`);
     return { success: true };
-
   } catch (error: any) {
     console.error("Gagal Generate Invoice:", error);
-    // Mengembalikan pesan error spesifik (misal: stok tidak cukup) ke Frontend
-    return { success: false, error: error.message || "Gagal memproses Invoice dan memotong stok." };
+    return {
+      success: false,
+      error: error.message || "Gagal memproses Invoice dan memotong stok.",
+    };
   }
 }

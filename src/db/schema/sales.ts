@@ -42,6 +42,12 @@ export const salesOrders = pgTable("sales_orders", {
   tanggal: date("tanggal", { mode: "string" }).notNull(),
   status: salesOrderStatusEnum("status").notNull().default("draft"),
   total: numeric("total", { precision: 14, scale: 2 }).notNull().default("0"),
+  metodePembayaran: text("metode_pembayaran").notNull().default("cash"),
+  jumlahCicilan: integer("jumlah_cicilan").notNull().default(1),
+  tenggat: date("tenggat", { mode: "string" }),
+  bayarAwal: numeric("bayar_awal", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
   dibuatOleh: integer("dibuat_oleh")
     .notNull()
     .references(() => users.id),

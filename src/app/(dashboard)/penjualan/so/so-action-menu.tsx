@@ -7,6 +7,7 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import {
   deletePesananPenjualan,
   type OpsiPelangganSO,
+  type OpsiProdukSO,
   type PesananPenjualanItem,
 } from "./actions";
 import { SOEditModal } from "./so-edit-modal";
@@ -14,9 +15,12 @@ import { SOEditModal } from "./so-edit-modal";
 interface SOActionMenuProps {
   row: PesananPenjualanItem;
   customers: OpsiPelangganSO[];
+  products: OpsiProdukSO[];
 }
 
-export function SOActionMenu({ row, customers }: SOActionMenuProps) {
+const STATUS_DIIZINKAN = ["draft", "confirmed", "dikonfirmasi"];
+
+export function SOActionMenu({ row, customers, products }: SOActionMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -37,11 +41,14 @@ export function SOActionMenu({ row, customers }: SOActionMenuProps) {
     };
   }, [open]);
 
+  const statusLower = (row.status || "").toLowerCase();
+  const bisaEditAtauHapus = STATUS_DIIZINKAN.includes(statusLower);
+
   const handleOpenEdit = () => {
     setOpen(false);
-    if (row.status !== "draft") {
+    if (!bisaEditAtauHapus) {
       alert(
-        `Dokumen ${row.nomor} berstatus "${row.status}" dan tidak dapat diedit melalui pop-up. Hanya SO berstatus Draft yang bisa diedit.`
+        `Dokumen ${row.nomor} berstatus "${row.status}" dan tidak dapat diedit melalui pop-up. Hanya SO berstatus Draft atau Dikonfirmasi yang bisa diedit.`
       );
       return;
     }
@@ -51,16 +58,19 @@ export function SOActionMenu({ row, customers }: SOActionMenuProps) {
   const handleDelete = async () => {
     setOpen(false);
 
-    if (row.status !== "draft") {
+    if (!bisaEditAtauHapus) {
       alert(
-        `Dokumen ${row.nomor} berstatus "${row.status}" dan tidak dapat dihapus. Hanya SO berstatus Draft yang bisa dihapus.`
+        `Dokumen ${row.nomor} berstatus "${row.status}" dan tidak dapat dihapus. Hanya SO berstatus Draft atau Dikonfirmasi yang bisa dihapus.`
       );
       return;
     }
 
-    const konfirmasi = window.confirm(
-      `Apakah Anda yakin ingin menghapus Sales Order ${row.nomor}? Tindakan ini tidak dapat dibatalkan.`
-    );
+    const isConfirmed = statusLower === "confirmed" || statusLower === "dikonfirmasi";
+    const pesanKonfirmasi = isConfirmed
+      ? `Sales Order ${row.nomor} sudah berstatus Dikonfirmasi. Menghapus dokumen ini akan mengembalikan stok produk terkait dan tidak dapat dibatalkan. Lanjutkan hapus?`
+      : `Apakah Anda yakin ingin menghapus Sales Order ${row.nomor}? Tindakan ini tidak dapat dibatalkan.`;
+
+    const konfirmasi = window.confirm(pesanKonfirmasi);
     if (!konfirmasi) return;
 
     setIsDeleting(true);
@@ -117,6 +127,7 @@ export function SOActionMenu({ row, customers }: SOActionMenuProps) {
         onSuccess={() => router.refresh()}
         row={row}
         customers={customers}
+        products={products}
       />
     </>
   );

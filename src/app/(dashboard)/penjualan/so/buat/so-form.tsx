@@ -139,20 +139,25 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
     });
   };
 
+  const totalQtyByProduct = items.reduce<Record<string, number>>((acc, item) => {
+    if (item.productId) {
+      acc[item.productId] = (acc[item.productId] || 0) + parseQtyValue(item.qtyInput);
+    }
+    return acc;
+  }, {});
+
   const grandTotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
 
   const parsedCicilan = Math.max(1, parseInt(jumlahCicilanInput || "1", 10) || 1);
   const rawBayarAwal = Number(bayarAwalInput || 0);
 
+  // Pada saat SO dibuat (Draft), Cash belum terbayar sebelum dikonfirmasi & invoice diterbitkan
   const nominalBayarAwal =
-    metodePembayaran === "cash"
-      ? grandTotal
-      : Math.max(0, Math.min(rawBayarAwal, grandTotal));
+    metodePembayaran === "utang"
+      ? Math.max(0, Math.min(rawBayarAwal, grandTotal))
+      : 0;
 
-  const sisaPiutang =
-    metodePembayaran === "cash"
-      ? 0
-      : Math.max(0, grandTotal - nominalBayarAwal);
+  const sisaPiutang = Math.max(0, grandTotal - nominalBayarAwal);
 
   const cicilanPerTermin =
     metodePembayaran === "utang" && parsedCicilan > 0
@@ -174,6 +179,25 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
 
     if (normalizedItems.some((i) => !i.productId || i.qty <= 0)) {
       return alert("Pastikan semua baris produk terisi dan kuantitas minimal 1!");
+    }
+
+    const totalQtyPerProduk = new Map<string, number>();
+    for (const item of normalizedItems) {
+      const currentTotal = totalQtyPerProduk.get(item.productId) || 0;
+      totalQtyPerProduk.set(item.productId, currentTotal + item.qty);
+    }
+
+    for (const [prodId, totalQtyDiminta] of totalQtyPerProduk.entries()) {
+      const produkMaster = masterData.products.find((p) => p.id.toString() === prodId);
+      if (produkMaster) {
+        const stokTersedia = Number(produkMaster.stok);
+        if (totalQtyDiminta > stokTersedia) {
+          return alert(
+            `Jumlah stok tidak mencukupi untuk produk "${produkMaster.nama}"!\n` +
+              `Stok tersedia: ${stokTersedia}, Kuantitas diminta: ${totalQtyDiminta}.`
+          );
+        }
+      }
     }
 
     if (metodePembayaran === "utang") {
@@ -201,9 +225,7 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
       tenggat: metodePembayaran === "utang" ? tenggat : null,
       bayarAwal: nominalBayarAwal,
       sisaPiutang,
-      statusPelunasan: (sisaPiutang <= 0 && grandTotal > 0 ? "Lunas" : "Belum Lunas") as
-        | "Lunas"
-        | "Belum Lunas",
+      statusPelunasan: "Belum Lunas" as const,
       items: normalizedItems,
     };
 
@@ -285,7 +307,7 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
               >
                 <div className="text-sm">Cash</div>
                 <div className="text-xs font-normal text-gray-500">
-                  Pembayaran tunai penuh tanpa cicilan
+                  Lunas otomatis setelah SO dikonfirmasi &amp; Invoice terbit
                 </div>
               </button>
 
@@ -384,56 +406,73 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="p-2 border">
-                      <select
-                        className="w-full border rounded p-2 text-sm"
-                        value={item.productId}
-                        onChange={(e) => handleProductChange(index, e.target.value)}
-                      >
-                        <option value="">-- Pilih Produk --</option>
-                        {masterData.products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nama}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-2 border text-center bg-gray-50 text-sm font-medium">
-                      {item.stokTersedia}
-                    </td>
-                    <td className="p-2 border text-right bg-gray-50 font-mono text-sm">
-                      {formatRupiah(item.harga)}
-                    </td>
-                    <td className="p-2 border">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="1"
-                        className="w-full border rounded p-2 text-center text-sm"
-                        value={item.qtyInput}
-                        onChange={(e) => handleQtyChange(index, e.target.value)}
-                        onBlur={() => handleQtyBlur(index)}
-                      />
-                    </td>
-                    <td className="p-2 border text-right font-semibold font-mono text-sm">
-                      {formatRupiah(item.subtotal)}
-                    </td>
-                    <td className="p-2 border text-center">
-                      <button
-                        type="button"
-                        title="Hapus baris barang"
-                        aria-label={`Hapus baris ${index + 1}`}
-                        onClick={() => removeRow(index)}
-                        disabled={items.length === 1}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:pointer-events-none"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((item, index) => {
+                  const totalQtyProduk = item.productId
+                    ? totalQtyByProduct[item.productId] || 0
+                    : 0;
+                  const melebihiStok =
+                    Boolean(item.productId) && totalQtyProduk > item.stokTersedia;
+
+                  return (
+                    <tr key={index} className="border-b">
+                      <td className="p-2 border">
+                        <select
+                          className="w-full border rounded p-2 text-sm"
+                          value={item.productId}
+                          onChange={(e) => handleProductChange(index, e.target.value)}
+                        >
+                          <option value="">-- Pilih Produk --</option>
+                          {masterData.products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nama}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 border text-center bg-gray-50 text-sm font-medium">
+                        {item.stokTersedia}
+                      </td>
+                      <td className="p-2 border text-right bg-gray-50 font-mono text-sm">
+                        {formatRupiah(item.harga)}
+                      </td>
+                      <td className="p-2 border">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1"
+                          className={`w-full border rounded p-2 text-center text-sm ${
+                            melebihiStok
+                              ? "border-red-500 bg-red-50 text-red-700 font-semibold"
+                              : ""
+                          }`}
+                          value={item.qtyInput}
+                          onChange={(e) => handleQtyChange(index, e.target.value)}
+                          onBlur={() => handleQtyBlur(index)}
+                        />
+                        {melebihiStok && (
+                          <p className="text-[11px] text-red-600 text-center mt-1 font-medium">
+                            Melebihi stok!
+                          </p>
+                        )}
+                      </td>
+                      <td className="p-2 border text-right font-semibold font-mono text-sm">
+                        {formatRupiah(item.subtotal)}
+                      </td>
+                      <td className="p-2 border text-center">
+                        <button
+                          type="button"
+                          title="Hapus baris barang"
+                          aria-label={`Hapus baris ${index + 1}`}
+                          onClick={() => removeRow(index)}
+                          disabled={items.length === 1}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -457,7 +496,11 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
               </p>
               <p className="text-sm text-gray-500">Total Tagihan:</p>
               <h2 className="text-3xl font-bold text-blue-600">{formatRupiah(grandTotal)}</h2>
-              {metodePembayaran === "utang" && (
+              {metodePembayaran === "cash" ? (
+                <p className="text-xs text-amber-700">
+                  Status awal: <span className="font-semibold">Belum Lunas</span> (otomatis Lunas setelah dikonfirmasi &amp; Invoice diterbitkan)
+                </p>
+              ) : (
                 <p className="text-xs text-gray-600">
                   Bayar Awal: <span className="font-semibold">{formatRupiah(nominalBayarAwal)}</span>{" "}
                   &bull; Sisa Piutang:{" "}
@@ -484,4 +527,3 @@ export default function SOForm({ masterData }: { masterData: MasterData }) {
     </div>
   );
 }
-
