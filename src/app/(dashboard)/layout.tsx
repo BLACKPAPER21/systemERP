@@ -50,7 +50,7 @@ const MENU: MenuItem[] = [
   {
     href: "/",
     label: "Dashboard",
-    roles: ["owner", "keuangan"],
+    roles: ["owner"],
     icon: LayoutDashboard,
   },
   // ---- M1 — Master Data (baris milik M1) ----

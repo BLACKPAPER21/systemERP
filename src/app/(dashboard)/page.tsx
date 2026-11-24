@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   Boxes,
@@ -14,6 +15,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default async function DashboardPage() {
   const sesi = await getSesi();
+
+  // Peran keuangan tidak memiliki halaman dashboard — langsung ke halaman keuangan
+  if (sesi?.peran === "keuangan") {
+    redirect("/keuangan/pembayaran");
+  }
 
   const modulAktif = [
     {

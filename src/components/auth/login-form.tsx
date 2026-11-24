@@ -29,7 +29,15 @@ export function LoginForm() {
         setGalat("Email atau kata sandi salah.");
         return;
       }
-      router.push("/master/produk");
+      // Ambil sesi untuk mengetahui peran, lalu arahkan ke halaman yang sesuai
+      const sesiRes = await fetch("/api/auth/session");
+      const sesi = await sesiRes.json();
+      const peran = sesi?.user?.peran;
+      if (peran === "keuangan") {
+        router.push("/keuangan/pembayaran");
+      } else {
+        router.push("/master/produk");
+      }
       router.refresh();
     } catch {
       setGalat("Gagal masuk — coba lagi.");
