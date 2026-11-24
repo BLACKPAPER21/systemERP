@@ -124,10 +124,9 @@ export async function generateInvoiceAndCutStock(soId: number) {
           );
         }
 
-        // @ts-ignore - Toleransi jika kolom hargaBeli belum didefinisikan secara strict di schema
-        const hppSatuan = prod.hargaBeli
-          ? Number(prod.hargaBeli)
-          : Number(prod.hargaJual) * 0.7;
+        // TODO(M4): ganti perkiraan ini dengan HPP rata-rata sesuai kontrak M3.
+        // Kolom hargaBeli tidak tersedia pada skema produk saat ini.
+        const hppSatuan = Number(prod.hargaJual) * 0.7;
         const subtotalHpp = Number(item.qty) * hppSatuan;
         totalHpp += subtotalHpp;
 

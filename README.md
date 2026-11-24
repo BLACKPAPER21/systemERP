@@ -8,14 +8,44 @@ Sumber kebenaran: `docs/PRD.md`.
 | Modul | Lingkup | Kelompok | Status |
 |:-----:|---------|----------|--------|
 | **M1** | Master data, RBAC, log audit, layanan bersama | BLACKPAPER21 | **Di `main`** |
-| **M2** | Pembelian — PO & penerimaan barang (GRN) | — | Belum masuk |
-| **M3** | Persediaan — kartu stok, opname, HPP rata-rata | — | Belum masuk (`stock.ts` masih stub) |
+| **M2** | Pembelian — PO, penerimaan barang (GRN), dan hutang | [musaytir](https://github.com/musaytir) | **Tersedia pada versi ini** — lihat [panduan M2](docs/M2-PEMBELIAN.md) |
+| **M3** | Persediaan — kartu stok, opname, HPP rata-rata | — | Belum lengkap; `recordStockIn` sudah tersedia untuk M2, layanan lainnya masih stub |
 | **M4** | Penjualan — SO & invoicing | ianfjrianto | **Di `main`** — lihat [catatan integrasi](#catatan-integrasi-yang-masih-terbuka) |
 | **M5** | Keuangan — jurnal, buku besar, beban, laporan, pembayaran | ur-ran | **Di `main`** (`docs/M5-KEUANGAN.md`) |
 | **M6** | Dashboard manajerial & penelusuran jurnal | NejadProgram | **Di `main`** |
 
-Menu **Pesanan Pembelian** dan **Kartu Stok** sudah ada di sidebar tetapi
-halamannya belum dibuat (M2/M3) — tautannya masih 404.
+Menu **Pesanan Pembelian**, **Penerimaan Barang**, dan **Hutang Supplier** sudah tersedia. Halaman **Kartu Stok** M3 belum tersedia.
+
+## Modul M2 — Pembelian
+
+Modul M2 mendukung proses pembelian dari pembuatan pesanan kepada supplier
+hingga pencatatan penerimaan barang dan pemantauan hutang. Modul ini memakai
+basis data dan layanan bersama SystemERP.
+
+- **Pesanan pembelian (PO):** membuat dan mengubah draft, melihat detail,
+  memfilter daftar berdasarkan supplier atau status, menyetujui, dan membatalkan
+  PO yang belum memiliki penerimaan.
+- **Penerimaan barang (GRN):** mencatat penerimaan sebagian atau seluruhnya
+  berdasarkan PO yang disetujui. Draft dapat diubah atau dihapus sebelum
+  diposting; jumlah pada draft mencadangkan sisa kuantitas PO.
+- **Stok dan jurnal:** saat GRN diposting, sistem mencatat stok masuk,
+  memperbarui harga pokok rata-rata, dan membuat jurnal persediaan serta hutang
+  dalam satu transaksi.
+- **Hutang supplier:** menampilkan penerimaan yang sudah diposting dan belum
+  lunas. Pelunasan penuh dilakukan melalui modul Keuangan (M5).
+
+Panduan alur penggunaan, hak akses, konfigurasi, dan pengujian tersedia di
+[Panduan M2 — Pembelian](docs/M2-PEMBELIAN.md).
+
+## Kontribusi
+
+| Kontributor | Modul |
+|-------------|-------|
+| [BLACKPAPER21](https://github.com/BLACKPAPER21) | M1 — Master data dan layanan bersama |
+| [musaytir](https://github.com/musaytir) | M2 — Pembelian dan integrasi PO, GRN, stok, jurnal, serta hutang |
+| [ianfjrianto](https://github.com/ianfjrianto) | M4 — Penjualan |
+| [ur-ran](https://github.com/ur-ran) | M5 — Keuangan |
+| [NejadProgram](https://github.com/NejadProgram) | M6 — Dashboard dan penelusuran jurnal |
 
 ## Tumpukan teknologi
 
@@ -45,9 +75,11 @@ AUTH_SECRET=...                      # contoh: openssl rand -base64 32
 ```sh
 npm i            # pasang dependensi
 npm run db:push  # terapkan skema ke basis data
-npm run db:seed  # isi 8 akun + 4 pengguna demo + data master + jurnal J0
+npm run db:seed  # KHUSUS database demo BARU: hapus semua data dan isi data contoh + jurnal J0
 npm run dev      # buka http://localhost:3000
 ```
+
+> **Peringatan:** `db:seed` menjalankan `TRUNCATE ... CASCADE` dan menghapus data seluruh modul. Jangan jalankan pada database yang berisi data penting. Cadangkan database sebelum perubahan skema.
 
 Skrip tersedia: `dev`, `db:local`, `build`, `start`, `db:generate`, `db:push`,
 `db:seed`.
@@ -63,7 +95,7 @@ arahkan `DATABASE_URL` ke sana:
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
 ```
 
-Setelah itu `npm run db:push` dan `npm run db:seed` seperti biasa.
+Setelah itu `npm run db:push`; jalankan `npm run db:seed` hanya pada database demo baru. PGlite hanya mendukung satu koneksi: pool aplikasi pada localhost dibatasi satu koneksi. Jangan menjalankan perintah database lain bersamaan dengan aplikasi; untuk penggunaan multi-pengguna gunakan PostgreSQL/Neon. Pada PostgreSQL lokal sungguhan, `DB_POOL_MAX` dapat diatur jika diperlukan.
 
 > `.env.local` **tidak pernah di-commit** — `.gitignore` memblokir `.env*` (NF-6).
 
@@ -102,6 +134,9 @@ tidak cukup.
 | `/master/produk`, `/supplier`, `/pelanggan`, `/akun` | M1 | sesuai PRD §4.2 |
 | `/master/pengguna` | M1 | owner |
 | `/audit` — log audit | M1 | owner |
+| `/pembelian/po` — PO, detail, buat/ubah | M2 | owner (buat/ubah/setujui/batal); gudang dan keuangan (lihat) |
+| `/pembelian/grn` — GRN, detail, buat/ubah/posting | M2 | gudang (buat/ubah/posting); owner dan keuangan (lihat) |
+| `/pembelian/hutang` — daftar hutang supplier | M2 | owner, keuangan |
 | `/penjualan/so` — daftar SO | M4 | keempat peran (lihat) |
 | `/penjualan/so/buat` | M4 | owner, sales |
 | `/penjualan/so/[id]` — detail & konfirmasi SO | M4 | keempat peran (lihat) |
@@ -126,15 +161,14 @@ Tanpa sesi, `/` membalas 307 ke `/login` — penjagaan ada di
 ## Kontrak antarmodul
 
 - **§7.2 — `src/services/stock.ts`** (milik M3): `recordStockIn`, `recordStockOut`,
-  `getAvailableStock`. Saat ini **stub** (prinsip stub-first §12.2) — M3 tahap 2
-  mengganti isi, tanda tangan tidak boleh diubah sepihak.
+  `getAvailableStock`. `recordStockIn` telah dilengkapi untuk transaksi GRN M2; `recordStockOut` dan `getAvailableStock` masih **stub** dan menunggu M3. Tanda tangan tidak boleh diubah sepihak.
 - **§7.3 — `src/services/journal.ts`** (milik M5): `createJournalEntry`
   **implementasi penuh** (validasi keseimbangan, translate kode akun, nomor `JV`,
   tulis `journal_entries` + `journal_lines`). **Satu-satunya jalur tulis jurnal** —
   seed J0 pun melalui fungsi ini (aturan K-2). M5 juga menambahkan
   `src/services/payment.ts` untuk pembayaran masuk/keluar dan beban.
 - **§7.5** — penandaan pelunasan: `markGoodsReceiptPaid` (M2) dan
-  `markInvoicePaid` (M4) dipanggil M5; M5 dilarang menulis tabel M2/M4 langsung.
+  `markInvoicePaid` (M4) dipanggil M5; untuk GRN, M5 kini menggunakan fungsi M2. Penandaan invoice masih menjadi pekerjaan integrasi M4/M5.
 
 ### Aturan K-2 (dipertajam)
 
@@ -177,7 +211,7 @@ tertangkap pemeriksaan otomatis — perbaikan menjadi tugas kelompok M4:
 | 1 | `generateInvoiceAndCutStock` tidak memanggil `createJournalEntry`; `invoices.journal_entry_id` dan `journal_entry_hpp_id` dibiarkan `NULL` | Invoice berstatus `posted` tanpa J3 (piutang) dan J4 (HPP) — buku besar serta laporan M5 tidak melihat penjualan, padahal dashboard M6 sudah menampilkan piutangnya | Terbitkan jurnal lewat `createJournalEntry` di dalam transaksi yang sama (§7.3) |
 | 2 | Stok dipotong dengan `UPDATE products.stok_saat_ini` langsung | Melanggar aturan K-2; tidak ada baris `stock_movements`, sehingga Kartu Stok M3 tidak mencatat penjualan | Panggil `recordStockOut` (§7.2) — menunggu M3 mengganti stub |
 | 3 | Nomor SO/invoice dibuat dengan `Math.random()` 4 digit | Kolom `nomor` **unique**; tabrakan membuat pembuatan SO gagal | Pakai `generateDocNumber(tx, prefix)` milik M1 |
-| 4 | `createSO(data: any)` tanpa validasi Zod, ada `@ts-ignore`, dan HPP memakai perkiraan "70% harga jual" bila `harga_beli` kosong | Masukan tak tervalidasi di batas kepercayaan (melanggar NF-4); nilai HPP tidak dapat dipertanggungjawabkan | Buat `src/lib/validations/penjualan.ts` dan ambil HPP dari `harga_pokok_rata_rata` milik M3 |
+| 4 | `createSO` belum memakai validasi Zod, dan HPP masih memakai perkiraan "70% harga jual" | Masukan tak tervalidasi di batas kepercayaan (melanggar NF-4); nilai HPP tidak dapat dipertanggungjawabkan | Buat `src/lib/validations/penjualan.ts` dan ambil HPP dari `harga_pokok_rata_rata` milik M3 |
 
 Penjaga peran NF-3 untuk M4 **sudah dipasang** saat penggabungan (halaman buat
 SO dan halaman invoice, serta `createSO`, `confirmSO`,

@@ -55,6 +55,9 @@ export async function actionBayarKeSuplier(
 
     revalidatePath("/keuangan/pembayaran");
     revalidatePath("/keuangan/jurnal");
+    revalidatePath("/pembelian/hutang");
+    revalidatePath(`/pembelian/grn/${grnId}`);
+    revalidatePath("/");
     return { ok: true, pesan: "Pembayaran ke supplier berhasil dicatat." };
   } catch (err) {
     const pesan = err instanceof Error ? err.message : "Terjadi kesalahan.";

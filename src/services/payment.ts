@@ -24,21 +24,7 @@ import {
 import { createJournalEntry } from "./journal";
 import { generateDocNumber } from "./numbering";
 import { logAudit } from "./audit";
-
-/* =====================================================================
- * markGoodsReceiptPaid — kontrak §7.5 (disediakan M5, dipanggil M5)
- * Hanya mengubah status_bayar GRN menjadi 'lunas'.
- * M5 memanggil ini SETELAH membentuk jurnal J2 (§7.5).
- * ===================================================================== */
-export async function markGoodsReceiptPaid(
-  tx: Transaction,
-  grnId: number,
-): Promise<void> {
-  await tx
-    .update(goodsReceipts)
-    .set({ statusBayar: "lunas" })
-    .where(eq(goodsReceipts.id, grnId));
-}
+import { markGoodsReceiptPaid } from "./purchasing";
 
 /* =====================================================================
  * markInvoicePaid — kontrak §7.5 (disediakan M5, dipanggil M5)
@@ -83,7 +69,8 @@ export async function bayarKeSuplier(
     })
     .from(goodsReceipts)
     .where(eq(goodsReceipts.id, input.grnId))
-    .limit(1);
+    .limit(1)
+    .for("update");
 
   const grn = rows[0];
   if (!grn) throw new Error("Penerimaan barang tidak ditemukan.");
