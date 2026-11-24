@@ -1,0 +1,24 @@
+/* Posisi popover notifikasi stok.
+ *
+ * Fallback (tanpa CSS Anchor Positioning, mis. Firefox): panel tetap di pojok
+ * kanan atas tepat di bawah header — lokasi tombol lonceng.
+ */
+.panel {
+  position: fixed;
+  inset: 3.5rem 1rem auto auto;
+  margin: 0;
+  max-height: calc(100dvh - 5rem);
+}
+
+/* Browser yang mendukung anchor positioning: tempelkan ke tombol pemicu
+ * (asosiasi anchor implisit dari popovertarget), sejajar tepi kanan tombol,
+ * dan balik ke atas bila terpotong viewport. */
+@supports (position-area: block-end) {
+  .panel {
+    inset: auto;
+    margin: 0;
+    margin-block-start: 0.5rem;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block;
+  }
+}
