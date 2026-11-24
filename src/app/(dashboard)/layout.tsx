@@ -48,6 +48,12 @@ const MENU: MenuItem[] = [
   },
   // ---- M1 — Master Data (baris milik M1) ----
   {
+    href: "/master/produk",
+    label: "Produk",
+    roles: ["owner", "gudang", "sales", "keuangan"],
+    icon: Boxes,
+  },
+  {
     href: "/master/supplier",
     label: "Supplier",
     roles: ["owner", "gudang", "keuangan"],

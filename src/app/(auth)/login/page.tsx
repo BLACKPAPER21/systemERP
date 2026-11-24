@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/auth/login-form";
+import { ruteAwal } from "@/lib/rute";
 
 // Kredensial demo dibuat oleh seed (PRD §9.6) — ditampilkan di halaman masuk.
 const DEMO = [
@@ -17,7 +18,7 @@ const DEMO = [
 export default async function LoginPage() {
   const session = await auth();
   if (session?.user) {
-    redirect("/master/produk");
+    redirect(ruteAwal(session.user.peran));
   }
 
   return (

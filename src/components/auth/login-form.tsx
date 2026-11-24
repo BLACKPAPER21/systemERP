@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ruteAwal } from "@/lib/rute";
 
 export function LoginForm() {
   const router = useRouter();
@@ -29,7 +30,9 @@ export function LoginForm() {
         setGalat("Email atau kata sandi salah.");
         return;
       }
-      router.push("/master/produk");
+      // Tujuan mengikuti peran (PRD §4.2) — lihat src/lib/rute.ts
+      const sesi = await getSession();
+      router.push(ruteAwal(sesi?.user?.peran));
       router.refresh();
     } catch {
       setGalat("Gagal masuk — coba lagi.");
