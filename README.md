@@ -8,13 +8,44 @@ Sumber kebenaran: `docs/PRD.md`.
 | Modul | Lingkup | Kelompok | Status |
 |:-----:|---------|----------|--------|
 | **M1** | Master data, RBAC, log audit, layanan bersama | BLACKPAPER21 | **Di `main`** |
-| **M2** | Pembelian — PO, penerimaan barang (GRN), dan hutang | — | **Terintegrasi** — lihat [panduan M2](docs/M2-PEMBELIAN.md) |
+| **M2** | Pembelian — PO, penerimaan barang (GRN), dan hutang | [musaytir](https://github.com/musaytir) | **Tersedia pada versi ini** — lihat [panduan M2](docs/M2-PEMBELIAN.md) |
 | **M3** | Persediaan — kartu stok, opname, HPP rata-rata | — | Belum lengkap; `recordStockIn` sudah tersedia untuk M2, layanan lainnya masih stub |
 | **M4** | Penjualan — SO & invoicing | ianfjrianto | **Di `main`** — lihat [catatan integrasi](#catatan-integrasi-yang-masih-terbuka) |
 | **M5** | Keuangan — jurnal, buku besar, beban, laporan, pembayaran | ur-ran | **Di `main`** (`docs/M5-KEUANGAN.md`) |
 | **M6** | Dashboard manajerial & penelusuran jurnal | NejadProgram | **Di `main`** |
 
 Menu **Pesanan Pembelian**, **Penerimaan Barang**, dan **Hutang Supplier** sudah tersedia. Halaman **Kartu Stok** M3 belum tersedia.
+
+## Modul M2 — Pembelian
+
+Modul M2 mendukung proses pembelian dari pembuatan pesanan kepada supplier
+hingga pencatatan penerimaan barang dan pemantauan hutang. Modul ini memakai
+basis data dan layanan bersama SystemERP.
+
+- **Pesanan pembelian (PO):** membuat dan mengubah draft, melihat detail,
+  memfilter daftar berdasarkan supplier atau status, menyetujui, dan membatalkan
+  PO yang belum memiliki penerimaan.
+- **Penerimaan barang (GRN):** mencatat penerimaan sebagian atau seluruhnya
+  berdasarkan PO yang disetujui. Draft dapat diubah atau dihapus sebelum
+  diposting; jumlah pada draft mencadangkan sisa kuantitas PO.
+- **Stok dan jurnal:** saat GRN diposting, sistem mencatat stok masuk,
+  memperbarui harga pokok rata-rata, dan membuat jurnal persediaan serta hutang
+  dalam satu transaksi.
+- **Hutang supplier:** menampilkan penerimaan yang sudah diposting dan belum
+  lunas. Pelunasan penuh dilakukan melalui modul Keuangan (M5).
+
+Panduan alur penggunaan, hak akses, konfigurasi, dan pengujian tersedia di
+[Panduan M2 — Pembelian](docs/M2-PEMBELIAN.md).
+
+## Kontribusi
+
+| Kontributor | Modul |
+|-------------|-------|
+| [BLACKPAPER21](https://github.com/BLACKPAPER21) | M1 — Master data dan layanan bersama |
+| [musaytir](https://github.com/musaytir) | M2 — Pembelian dan integrasi PO, GRN, stok, jurnal, serta hutang |
+| [ianfjrianto](https://github.com/ianfjrianto) | M4 — Penjualan |
+| [ur-ran](https://github.com/ur-ran) | M5 — Keuangan |
+| [NejadProgram](https://github.com/NejadProgram) | M6 — Dashboard dan penelusuran jurnal |
 
 ## Tumpukan teknologi
 

@@ -1,8 +1,12 @@
-# Panduan M2 — Pembelian (PO & Penerimaan Barang)
+# M2 — Modul Pembelian SystemERP
+
+Modul Pembelian (M2) mengelola pesanan kepada supplier, penerimaan barang, dan
+pemantauan hutang dalam proyek SystemERP. Prosesnya terhubung dengan data
+master, stok masuk, jurnal, serta pembayaran melalui modul Keuangan (M5).
 
 ## Yang tersedia
 
-M2 menggunakan database dan skema yang sama dengan modul lain: `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `products`, `suppliers`, `stock_movements`, `journal_entries`, dan tabel terkait. Tabel M2 sudah ada pada skema bawaan proyek; tidak dibuat database kedua dan tidak diperlukan migrasi baru khusus M2. File ZIP proyek berisi skema/kode, bukan salinan database pengguna yang sudah terisi.
+M2 menggunakan database dan skema yang sama dengan modul lain: `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `products`, `suppliers`, `stock_movements`, `journal_entries`, dan tabel terkait. Tabel M2 sudah ada pada skema bawaan proyek; tidak dibuat database kedua dan tidak diperlukan migrasi baru khusus M2.
 
 - **PO:** membuat dan mengubah draft, melihat daftar dan detail, filter supplier/status, menyetujui, membatalkan PO tanpa GRN.
 - **GRN:** membuat dan mengubah draft berdasarkan PO yang disetujui, penerimaan sebagian, menghapus draft, posting, daftar dan detail.
@@ -10,6 +14,18 @@ M2 menggunakan database dan skema yang sama dengan modul lain: `purchase_orders`
 - Seluruh nominal dan kuantitas dibatasi dua desimal. Harga barang pada GRN mengikuti harga PO. Draft GRN mencadangkan kuantitas sehingga total draft dan yang sudah diposting tidak melebihi PO; menghapus draft melepaskan cadangan.
 - Posting GRN mencatat pergerakan stok masuk, menghitung rata-rata harga pokok, dan membentuk jurnal J1 **Debit 1-300 Persediaan / Kredit 2-100 Hutang Usaha** dalam satu transaksi. Bila salah satu gagal, semua dibatalkan.
 - PO otomatis berstatus `received` setelah semua barang diposting. GRN yang telah diposting tidak bisa diubah atau dihapus. Semua aksi dicatat di log audit.
+
+## Halaman M2
+
+| Rute | Kegunaan |
+|---|---|
+| `/pembelian/po` | Daftar PO dan filter berdasarkan supplier atau status. |
+| `/pembelian/po/buat` | Membuat draft pesanan pembelian. |
+| `/pembelian/po/[id]` | Melihat detail PO dan penerimaannya; owner dapat mengubah draft, menyetujui, atau membatalkan PO sesuai statusnya. |
+| `/pembelian/grn` | Daftar penerimaan dan filter berdasarkan status. |
+| `/pembelian/grn/buat` | Memilih PO yang disetujui dan membuat draft penerimaan. |
+| `/pembelian/grn/[id]` | Melihat detail penerimaan, status pembayaran, dan jurnal; gudang dapat mengubah, menghapus, atau memposting draft. |
+| `/pembelian/hutang` | Melihat daftar dan total hutang supplier yang belum lunas. |
 
 ## Hak akses
 
@@ -86,3 +102,8 @@ Pengujian lokal di PGlite dilakukan melalui satu pool aplikasi. Pengujian multi-
 ## Peringatan versi framework
 
 Proyek asal memakai Next.js 16.4.4. Versi tersebut tercantum dalam sejumlah advisori keamanan Next.js; misalnya [GHSA-pc58-hwjq-p385](https://github.com/vercel/next.js/security/advisories/GHSA-pc58-hwjq-p385) yang diperbaiki pada 16.4.5. Dampak spesifik bergantung pada fitur dan konfigurasi deployment. Sebelum dipakai secara publik, perbarui dan uji versi Next.js yang telah diperbaiki bersama tim proyek.
+
+## Kontributor M2
+
+[musaytir](https://github.com/musaytir) — Modul Pembelian (PO, penerimaan
+barang, hutang supplier, dan integrasi antarmodul).
