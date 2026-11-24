@@ -11,11 +11,25 @@ const globalForDb = globalThis as unknown as {
   pool: Pool | undefined;
 };
 
+// PGlite bawaan proyek hanya memiliki satu koneksi; batasi pool lokal agar
+// transaksi bersamaan tidak berbagi satu sesi dan saling menimpa. Pada server
+// PostgreSQL biasa jumlah koneksi dapat ditentukan melalui DB_POOL_MAX.
+function poolSize(): number {
+  const configured = Number(process.env.DB_POOL_MAX);
+  if (Number.isInteger(configured) && configured >= 1 && configured <= 100) return configured;
+  try {
+    const host = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/postgres").hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" ? 1 : 10;
+  } catch {
+    return 10;
+  }
+}
+
 export const pool =
   globalForDb.pool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 10,
+    max: poolSize(),
     ssl: process.env.DATABASE_URL?.includes("sslmode=require")
       ? { rejectUnauthorized: false }
       : undefined,

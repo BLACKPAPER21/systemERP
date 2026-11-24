@@ -90,6 +90,18 @@ const MENU: MenuItem[] = [
     roles: ["owner", "gudang", "keuangan"],
     icon: ShoppingCart,
   },
+  {
+    href: "/pembelian/grn",
+    label: "Penerimaan Barang",
+    roles: ["owner", "gudang", "keuangan"],
+    icon: Boxes,
+  },
+  {
+    href: "/pembelian/hutang",
+    label: "Hutang Supplier",
+    roles: ["owner", "keuangan"],
+    icon: Wallet,
+  },
   // ---- M3 — Persediaan (baris milik M3) ----
   {
     href: "/persediaan/kartu-stok",
