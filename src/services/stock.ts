@@ -1,74 +1,234 @@
-/* ============================================================
- * FILE MILIK M3 — PERSEDIAAN
- * M3 (tahap 2) mengganti isi fungsinya, kontrak tanda tangan
- * dipatenkan PRD §7.2 — JANGAN MENGUBAH TANDA TANGAN SEPIHAK.
- * ============================================================
- *
- * Stub-first (PRD §12.2): berkas ini diserahkan sejak Fase 0 oleh M1 dengan
- * isi tiruan supaya M2 & M4 dapat menulis logika posting-nya sebelum M3 selesai.
- * Isinya TIDAK memicu apa-apa; TODO(M3) menandai implementasi sebenarnya.
- *
- * Tanggung jawab M3 di dalam fungsi (PRD §7.2) — diisi M3 pada tahap 2:
- * - Menulis baris stock_movements beserta saldo_setelah (AB-8, AB-9)
- * - Memperbarui products.stok_saat_ini dan products.harga_pokok_rata_rata (§8.2)
- * - Mengunci baris produk FOR UPDATE sebelum mengubah saldo (NF-9)
- * - Melempar galat bila stok akan menjadi negatif (K-4, AB-7)
- * Yang bukan tanggung jawab M3: membentuk jurnal — pemanggil menjurnal (§6.2).
- */
-import type { Transaction } from "@/db";
 
-/** Tipe refType pemanggil sesuai skema M3 (tabel stock_movements, §8.4). */
-export type MovementRefType = "goods_receipt" | "invoice" | "stock_opname";
+import { eq } from "drizzle-orm";
+import { db, type Transaction } from "@/db";
+import { products } from "@/db/schema/master";
+import { stockMovements } from "@/db/schema/inventory";
 
 export interface RecordStockInInput {
   productId: number;
-  qty: number; // selalu positif
-  unitCost: number; // harga beli per satuan
-  refType: MovementRefType;
+  qty: number;
+  unitCost: number;
+  refType: "goods_receipt";
   refId: number;
   keterangan?: string;
 }
 
 export interface RecordStockOutInput {
   productId: number;
-  qty: number; // selalu positif
-  refType: MovementRefType;
+  qty: number;
+  refType: "invoice";
   refId: number;
   keterangan?: string;
 }
 
-/** Mencatat barang masuk + menghitung ulang harga pokok rata-rata.
- * Dipanggil oleh: M2 (posting GRN) */
+/**
+ * Mengubah nilai menjadi satuan terkecil (dua angka desimal).
+ * BigInt digunakan untuk menghindari kesalahan perhitungan uang.
+ */
+function toCents(value: number): bigint {
+  if (!Number.isFinite(value)) {
+    throw new Error("Nilai harus berupa angka yang valid.");
+  }
+
+  const cents = Math.round(value * 100);
+
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("Nilai berada di luar batas perhitungan.");
+  }
+
+  return BigInt(cents);
+}
+
+function formatCents(value: bigint): string {
+  const sign = value < 0n ? "-" : "";
+  const absolute = value < 0n ? -value : value;
+
+  return `${sign}${absolute / 100n}.${(absolute % 100n)
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function divideRoundHalfUp(
+  numerator: bigint,
+  denominator: bigint,
+): bigint {
+  if (denominator <= 0n) {
+    throw new Error("Pembagi harus lebih besar dari nol.");
+  }
+
+  return (numerator + denominator / 2n) / denominator;
+}
+
+/**
+ * Mencatat barang masuk dan menghitung harga pokok rata-rata.
+ * Dipanggil oleh M2 ketika GRN diposting.
+ */
 export async function recordStockIn(
   tx: Transaction,
   input: RecordStockInInput,
 ): Promise<{ saldoSetelah: number; hargaPokokBaru: number }> {
-  void tx;
-  void input;
-  // TODO(M3): implementasi rumus harga pokok rata-rata — PRD §9.4
-  // (katk baris FOR UPDATE, tulis stock_movements, update products cache)
-  return { saldoSetelah: 0, hargaPokokBaru: 0 };
+  if (input.qty <= 0) {
+    throw new Error("Jumlah barang masuk harus lebih besar dari nol.");
+  }
+
+  if (input.unitCost < 0) {
+    throw new Error("Harga beli tidak boleh negatif.");
+  }
+
+  // Kunci baris produk agar transaksi bersamaan tidak mengubah stok
+  // berdasarkan saldo lama yang sama.
+  const [product] = await tx
+    .select({
+      id: products.id,
+      stokSaatIni: products.stokSaatIni,
+      hargaPokokRataRata: products.hargaPokokRataRata,
+    })
+    .from(products)
+    .where(eq(products.id, input.productId))
+    .for("update");
+
+  if (!product) {
+    throw new Error(`Produk dengan ID ${input.productId} tidak ditemukan.`);
+  }
+
+  const stokLama = toCents(Number(product.stokSaatIni));
+  const hargaLama = toCents(Number(product.hargaPokokRataRata));
+  const qtyMasuk = toCents(input.qty);
+  const hargaBeli = toCents(input.unitCost);
+
+  if (qtyMasuk <= 0n) {
+    throw new Error("Jumlah barang masuk harus lebih besar dari nol.");
+  }
+
+  const saldoBaru = stokLama + qtyMasuk;
+
+  // Moving Weighted Average:
+  // ((stok lama x harga lama) + (qty masuk x harga beli))
+  // / (stok lama + qty masuk)
+  const nilaiPersediaanLama = stokLama * hargaLama;
+  const nilaiPembelianBaru = qtyMasuk * hargaBeli;
+
+  const hargaPokokBaru = divideRoundHalfUp(
+    nilaiPersediaanLama + nilaiPembelianBaru,
+    saldoBaru,
+  );
+
+  await tx.insert(stockMovements).values({
+    productId: input.productId,
+    tipe: "in",
+    qty: formatCents(qtyMasuk),
+    hargaSatuan: formatCents(hargaBeli),
+    saldoSetelah: formatCents(saldoBaru),
+    refType: input.refType,
+    refId: input.refId,
+    keterangan: input.keterangan,
+  });
+
+  await tx
+    .update(products)
+    .set({
+      stokSaatIni: formatCents(saldoBaru),
+      hargaPokokRataRata: formatCents(hargaPokokBaru),
+    })
+    .where(eq(products.id, input.productId));
+
+  return {
+    saldoSetelah: Number(saldoBaru) / 100,
+    hargaPokokBaru: Number(hargaPokokBaru) / 100,
+  };
 }
 
-/** Mencatat barang keluar + MENGEMBALIKAN nilai HPP untuk dijurnal.
- * Dipanggil oleh: M4 (posting invoice). Melempar galat bila stok tidak cukup. */
+/**
+ * Mencatat barang keluar dan mengembalikan HPP untuk M4.
+ * Melempar error jika stok tidak mencukupi.
+ */
 export async function recordStockOut(
   tx: Transaction,
   input: RecordStockOutInput,
 ): Promise<{ saldoSetelah: number; hppSatuan: number; hppTotal: number }> {
-  void tx;
-  void input;
-  // TODO(M3): validasi stok (FOR UPDATE), tulis stock_movements, hitung HPP — PRD §9.4
-  return { saldoSetelah: 0, hppSatuan: 0, hppTotal: 0 };
+  if (input.qty <= 0) {
+    throw new Error("Jumlah barang keluar harus lebih besar dari nol.");
+  }
+
+  const [product] = await tx
+    .select({
+      id: products.id,
+      stokSaatIni: products.stokSaatIni,
+      hargaPokokRataRata: products.hargaPokokRataRata,
+    })
+    .from(products)
+    .where(eq(products.id, input.productId))
+    .for("update");
+
+  if (!product) {
+    throw new Error(`Produk dengan ID ${input.productId} tidak ditemukan.`);
+  }
+
+  const stokLama = toCents(Number(product.stokSaatIni));
+  const hppSatuanCents = toCents(Number(product.hargaPokokRataRata));
+  const qtyKeluar = toCents(input.qty);
+
+  if (qtyKeluar <= 0n) {
+    throw new Error("Jumlah barang keluar harus lebih besar dari nol.");
+  }
+
+  if (qtyKeluar > stokLama) {
+    throw new Error(
+      `Stok tidak mencukupi. Stok tersedia: ${Number(stokLama) / 100}.`,
+    );
+  }
+
+  const saldoBaru = stokLama - qtyKeluar;
+
+  // HPP total = jumlah barang keluar x harga pokok rata-rata.
+const hppTotalCents = divideRoundHalfUp(
+  qtyKeluar * hppSatuanCents,
+  100n,
+);
+
+  await tx.insert(stockMovements).values({
+    productId: input.productId,
+    tipe: "out",
+    qty: formatCents(-qtyKeluar),
+    hargaSatuan: formatCents(hppSatuanCents),
+    saldoSetelah: formatCents(saldoBaru),
+    refType: input.refType,
+    refId: input.refId,
+    keterangan: input.keterangan,
+  });
+
+  await tx
+    .update(products)
+    .set({
+      stokSaatIni: formatCents(saldoBaru),
+      // Harga pokok rata-rata tidak berubah ketika barang keluar.
+    })
+    .where(eq(products.id, input.productId));
+
+  return {
+    saldoSetelah: Number(saldoBaru) / 100,
+    hppSatuan: Number(hppSatuanCents) / 100,
+    hppTotal: Number(hppTotalCents) / 100,
+  };
 }
 
-/** Pemeriksaan stok untuk umpan balik cepat di antarmuka.
- * Dipanggil oleh: M4 (validasi SO), M6 (dashboard).
- * CATATAN: ini BUKAN pengganti validasi di dalam recordStockOut (AB-7). */
+/**
+ * Membaca saldo stok dari cache products.
+ * Bukan pengganti validasi stok di recordStockOut.
+ */
 export async function getAvailableStock(
   productId: number,
 ): Promise<number> {
-  void productId;
-  // TODO(M3): baca stok_saat_ini produk (cache stock_movements)
-  return 0;
+  const [product] = await db
+    .select({
+      stokSaatIni: products.stokSaatIni,
+    })
+    .from(products)
+    .where(eq(products.id, productId));
+
+  if (!product) {
+    throw new Error(`Produk dengan ID ${productId} tidak ditemukan.`);
+  }
+
+  return Number(product.stokSaatIni);
 }

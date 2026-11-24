@@ -9,6 +9,7 @@ import Link from "next/link";
 import {
   Boxes,
   Building2,
+  ClipboardList,
   Landmark,
   Receipt,
   ShieldCheck,
@@ -88,12 +89,30 @@ const MENU: MenuItem[] = [
     icon: ShoppingCart,
   },
   // ---- M3 — Persediaan (baris milik M3) ----
-  {
-    href: "/persediaan/kartu-stok",
-    label: "Kartu Stok",
-    roles: ["owner", "gudang", "sales", "keuangan"],
-    icon: Boxes,
-  },
+{
+  href: "/persediaan/kartu-stok",
+  label: "Kartu Stok",
+  roles: ["owner", "gudang", "sales", "keuangan"],
+  icon: Boxes,
+},
+{
+  href: "/persediaan/saldo-stok",
+  label: "Daftar Saldo Stok",
+  roles: ["owner", "gudang", "sales", "keuangan"],
+  icon: Store,
+},
+{
+  href: "/persediaan/peringatan-stok",
+  label: "Peringatan Stok Minimum",
+  roles: ["owner", "gudang", "sales", "keuangan"],
+  icon: ShieldCheck,
+},
+{
+  href: "/persediaan/stock-opname",
+  label: "Stock Opname",
+  roles: ["owner", "gudang"],
+  icon: ClipboardList,
+},
   // ---- M4 — Penjualan (baris milik M4) ----
   {
     href: "/penjualan/so",
