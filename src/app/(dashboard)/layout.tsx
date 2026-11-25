@@ -28,6 +28,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { signOut } from "@/auth";
+import { NotifikasiStok } from "@/components/dashboard/notifikasi-stok";
 import { getSesi } from "@/lib/auth-guard";
 import type { Peran } from "@/lib/auth-guard";
 import { cn } from "@/lib/utils";
@@ -252,12 +253,18 @@ export default async function DashboardLayout({
             sesuai peran.
             <ShieldCheck className="ml-2 inline h-4 w-4 align-text-bottom text-muted-foreground" />
           </p>
-          <p className="text-sm">
-            <span className="text-muted-foreground">{sesi!.nama}</span>
-            <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
-              {peran}
-            </span>
-          </p>
+          <div className="flex items-center gap-3">
+            {/* ---- M6 — Notifikasi stok kritis (baris milik M6) ---- */}
+            {(["owner", "gudang", "keuangan"] as Peran[]).includes(peran) ? (
+              <NotifikasiStok />
+            ) : null}
+            <p className="text-sm">
+              <span className="text-muted-foreground">{sesi!.nama}</span>
+              <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+                {peran}
+              </span>
+            </p>
+          </div>
         </header>
         <main className="flex-1 bg-muted/30 p-6">{children}</main>
       </div>
