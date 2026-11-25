@@ -11,6 +11,7 @@ import {
   Building2,
   BookOpen,
   BookMarked,
+  ClipboardList,
   Landmark,
   Receipt,
   ShieldCheck,
@@ -106,8 +107,26 @@ const MENU: MenuItem[] = [
   {
     href: "/persediaan/kartu-stok",
     label: "Kartu Stok",
-    roles: ["owner", "gudang", "keuangan"],
+    roles: ["owner", "gudang", "sales", "keuangan"],
     icon: Boxes,
+  },
+  {
+    href: "/persediaan/saldo-stok",
+    label: "Daftar Saldo Stok",
+    roles: ["owner", "gudang", "sales", "keuangan"],
+    icon: Store,
+  },
+  {
+    href: "/persediaan/peringatan-stok",
+    label: "Peringatan Stok Minimum",
+    roles: ["owner", "gudang", "sales", "keuangan"],
+    icon: ShieldCheck,
+  },
+  {
+    href: "/persediaan/stock-opname",
+    label: "Stock Opname",
+    roles: ["owner", "gudang"],
+    icon: ClipboardList,
   },
   // ---- M4 — Penjualan (baris milik M4) ----
   {
