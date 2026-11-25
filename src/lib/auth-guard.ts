@@ -5,7 +5,7 @@
  * Melempar galat bila: sesi tidak ada (NF-2) atau peran tidak diizinkan (NF-3).
  * Pesan galat tidak membocorkan detail internal (NF-7).
  */
-import { auth } from "@/auth";
+import { sesiSaatIni } from "@/auth";
 
 export type Peran = "owner" | "gudang" | "sales" | "keuangan";
 
@@ -29,7 +29,7 @@ export class AuthError extends Error {
 export async function requireRole(
   roles: Peran[],
 ): Promise<SesiPengguna> {
-  const session = await auth();
+  const session = await sesiSaatIni();
 
   if (!session?.user) {
     throw new AuthError(

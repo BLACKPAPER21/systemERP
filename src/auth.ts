@@ -18,6 +18,16 @@ const skemaLogin = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Galat sesi tidak perlu menumpahkan jejak tumpukan ke konsol (NF-7).
+  // JWTSessionError sudah ditangani sesiSaatIni() di bawah.
+  logger: {
+    error(galat) {
+      if (galat?.name === "JWTSessionError") return;
+      console.error("[auth]", galat?.message ?? galat);
+    },
+    warn() {},
+    debug() {},
+  },
   session: { strategy: "jwt", maxAge: 60 * 60 * 12 }, // setengah hari
   pages: { signIn: "/login" },
   providers: [
@@ -73,3 +83,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+/* ======================================================================
+ * sesiSaatIni — membaca sesi tanpa membuat halaman jebol.
+ *
+ * Cookie sesi terenkripsi dengan AUTH_SECRET. Bila nilainya berubah
+ * (rotasi kunci, pindah lingkungan, .env.local baru), cookie lama di
+ * peramban tidak lagi dapat didekripsi dan Auth.js melempar
+ * JWTSessionError. Tanpa penanganan, galat itu bahkan menjatuhkan
+ * halaman /login — satu-satunya tempat pengguna bisa memulihkan diri.
+ *
+ * Cookie yang tidak terbaca diperlakukan sama seperti tidak ada cookie:
+ * pengguna dianggap belum masuk. Begitu ia masuk lagi, cookie lama
+ * tertimpa yang baru, jadi keadaannya pulih sendiri.
+ * ====================================================================== */
+export async function sesiSaatIni() {
+  try {
+    return await auth();
+  } catch (galat) {
+    const nama = (galat as { name?: string })?.name;
+    if (nama === "JWTSessionError" || nama === "JWEDecryptionFailed") {
+      return null;
+    }
+    throw galat;
+  }
+}

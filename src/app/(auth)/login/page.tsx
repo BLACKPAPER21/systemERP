@@ -3,7 +3,7 @@
  */
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
+import { sesiSaatIni } from "@/auth";
 import { LoginForm } from "@/components/auth/login-form";
 import { ruteAwal } from "@/lib/rute";
 
@@ -16,7 +16,9 @@ const DEMO = [
 ];
 
 export default async function LoginPage() {
-  const session = await auth();
+  // Cookie lama yang tidak terbaca dianggap belum masuk — halaman ini
+  // harus tetap tampil agar pengguna bisa memulihkan sesinya.
+  const session = await sesiSaatIni();
   if (session?.user) {
     redirect(ruteAwal(session.user.peran));
   }
