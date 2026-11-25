@@ -6,6 +6,8 @@ import { customers, products } from "@/db/schema/master";
 import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth-guard";
+import { generateDocNumber } from "@/services/numbering";
+import { logAudit } from "@/services/audit";
 
 export interface CreateSOItemInput {
   productId: string | number;
@@ -57,7 +59,7 @@ export async function getFormOptions() {
 // 2. Menyimpan Transaksi SO dan Detail Itemnya (Database Transaction)
 export async function createSO(data: CreateSOPayload) {
   try {
-    await requireRole(["owner", "sales"]);
+    const sesi = await requireRole(["owner", "sales"]);
 
     // Validasi stok di server sebelum transaksi
     const totalQtyPerProduk = new Map<number, number>();
@@ -108,9 +110,8 @@ export async function createSO(data: CreateSOPayload) {
     const sisaPiutang = Math.max(0, totalNilai - bayarAwal);
 
     await db.transaction(async (tx) => {
-      const date = new Date();
-      const random = Math.floor(1000 + Math.random() * 9000);
-      const nomorSO = `SO/${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${random}`;
+      // Nomor berurut dari penghitung M1 (§9.7) — bukan angka acak yang bisa bentrok.
+      const nomorSO = await generateDocNumber(tx, "SO");
 
       const [newSo] = await tx
         .insert(salesOrders)
@@ -124,12 +125,12 @@ export async function createSO(data: CreateSOPayload) {
           jumlahCicilan,
           tenggat,
           bayarAwal: String(bayarAwal),
-          dibuatOleh: 1,
+          dibuatOleh: sesi.userId,
         })
         .returning({ id: salesOrders.id });
 
       const itemsToInsert = data.items.map((item) => ({
-        soId: newSo.id,
+        soId: newSo!.id,
         productId: Number(item.productId),
         qty: String(item.qty),
         hargaSatuan: String(item.harga),
@@ -137,6 +138,14 @@ export async function createSO(data: CreateSOPayload) {
       }));
 
       await tx.insert(salesOrderItems).values(itemsToInsert);
+
+      await logAudit(tx, {
+        userId: sesi.userId,
+        aksi: "create",
+        entitas: "sales_orders",
+        entitasId: newSo!.id,
+        detail: { nomor: nomorSO, total: totalNilai, metode },
+      });
     });
 
     revalidatePath("/penjualan/so");

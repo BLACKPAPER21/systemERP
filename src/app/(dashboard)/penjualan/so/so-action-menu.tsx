@@ -3,7 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { MoreHorizontal, Pencil, Ban } from "lucide-react";
 import {
   deletePesananPenjualan,
   type OpsiPelangganSO,
@@ -25,6 +33,8 @@ export function SOActionMenu({ row, customers, products }: SOActionMenuProps) {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [batalOpen, setBatalOpen] = useState(false);
+  const [galat, setGalat] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,32 +65,17 @@ export function SOActionMenu({ row, customers, products }: SOActionMenuProps) {
     setEditOpen(true);
   };
 
-  const handleDelete = async () => {
-    setOpen(false);
-
-    if (!bisaEditAtauHapus) {
-      alert(
-        `Dokumen ${row.nomor} berstatus "${row.status}" dan tidak dapat dihapus. Hanya SO berstatus Draft atau Dikonfirmasi yang bisa dihapus.`
-      );
-      return;
-    }
-
-    const isConfirmed = statusLower === "confirmed" || statusLower === "dikonfirmasi";
-    const pesanKonfirmasi = isConfirmed
-      ? `Sales Order ${row.nomor} sudah berstatus Dikonfirmasi. Menghapus dokumen ini akan mengembalikan stok produk terkait dan tidak dapat dibatalkan. Lanjutkan hapus?`
-      : `Apakah Anda yakin ingin menghapus Sales Order ${row.nomor}? Tindakan ini tidak dapat dibatalkan.`;
-
-    const konfirmasi = window.confirm(pesanKonfirmasi);
-    if (!konfirmasi) return;
-
+  const handleBatal = async () => {
     setIsDeleting(true);
+    setGalat(null);
     const res = await deletePesananPenjualan(row.id);
     setIsDeleting(false);
 
     if (res.success) {
+      setBatalOpen(false);
       router.refresh();
     } else {
-      alert(res.error || "Gagal menghapus Sales Order.");
+      setGalat(res.error || "Gagal membatalkan Sales Order.");
     }
   };
 
@@ -111,15 +106,64 @@ export function SOActionMenu({ row, customers, products }: SOActionMenuProps) {
 
             <button
               type="button"
-              onClick={handleDelete}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors"
+              disabled={!bisaEditAtauHapus}
+              title={
+                bisaEditAtauHapus
+                  ? undefined
+                  : `SO berstatus "${row.status}" tidak dapat dibatalkan.`
+              }
+              onClick={() => {
+                setOpen(false);
+                setGalat(null);
+                setBatalOpen(true);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-transparent"
             >
-              <Trash2 className="h-4 w-4" />
-              <span>Hapus</span>
+              <Ban className="h-4 w-4" />
+              <span>Batalkan</span>
             </button>
           </div>
         )}
       </div>
+
+      {/* NF-18: dialog bersama, bukan window.confirm/alert. */}
+      <Dialog open={batalOpen} onOpenChange={setBatalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Batalkan Sales Order?</DialogTitle>
+            <DialogDescription>
+              Dokumen{" "}
+              <span className="font-medium">{row.nomor}</span> akan ditandai{" "}
+              <span className="font-medium">cancelled</span>, bukan dihapus —
+              riwayatnya tetap tersimpan agar dapat diaudit. SO yang sudah
+              memiliki invoice tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+
+          {galat ? (
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {galat}
+            </p>
+          ) : null}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setBatalOpen(false)}
+              disabled={isDeleting}
+            >
+              Tutup
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleBatal}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Membatalkan…" : "Batalkan SO"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SOEditModal
         open={editOpen}

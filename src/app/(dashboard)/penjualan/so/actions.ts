@@ -7,6 +7,7 @@ import { payments } from "@/db/schema/finance";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth-guard";
+import { logAudit } from "@/services/audit";
 
 export type ItemDaftarBayar = {
   id: string | number;
@@ -437,41 +438,67 @@ export async function updatePesananPenjualan(payload: UpdateSOPopupPayload) {
   }
 }
 
+/* Membatalkan SO — bukan menghapusnya.
+ * PRD §8.5 no. 4: dokumen transaksi yang salah dibatalkan lewat status
+ * `cancelled`, tidak pernah dihapus, agar riwayatnya tetap dapat diaudit
+ * (NF-10). AB-6: SO yang sudah punya invoice tidak dapat dibatalkan.
+ */
 export async function deletePesananPenjualan(id: number) {
   try {
-    await requireRole(["owner", "sales"]);
-
-    const [existing] = await db
-      .select({ id: salesOrders.id, status: salesOrders.status })
-      .from(salesOrders)
-      .where(eq(salesOrders.id, id))
-      .limit(1);
-
-    if (!existing) {
-      return { success: false, error: "Dokumen Sales Order tidak ditemukan." };
-    }
-
-    const statusLower = (existing.status || "").toLowerCase();
-    if (!STATUS_DIIZINKAN.includes(statusLower)) {
-      return {
-        success: false,
-        error: "Hanya Sales Order berstatus Draft atau Dikonfirmasi yang dapat dihapus.",
-      };
-    }
+    const sesi = await requireRole(["owner", "sales"]);
 
     await db.transaction(async (tx) => {
-      await tx.delete(salesOrderItems).where(eq(salesOrderItems.soId, id));
-      await tx.delete(salesOrders).where(eq(salesOrders.id, id));
+      const [existing] = await tx
+        .select({ id: salesOrders.id, status: salesOrders.status })
+        .from(salesOrders)
+        .where(eq(salesOrders.id, id))
+        .for("update");
+
+      if (!existing) throw new Error("Dokumen Sales Order tidak ditemukan.");
+
+      const statusLower = (existing.status || "").toLowerCase();
+      if (!STATUS_DIIZINKAN.includes(statusLower)) {
+        throw new Error(
+          "Hanya Sales Order berstatus Draft atau Dikonfirmasi yang dapat dibatalkan.",
+        );
+      }
+
+      const [invoiceTerkait] = await tx
+        .select({ nomor: invoices.nomor })
+        .from(invoices)
+        .where(eq(invoices.soId, id))
+        .limit(1);
+      if (invoiceTerkait) {
+        throw new Error(
+          `Pesanan ini sudah memiliki invoice ${invoiceTerkait.nomor} sehingga tidak dapat dibatalkan (AB-6).`,
+        );
+      }
+
+      await tx
+        .update(salesOrders)
+        .set({ status: "cancelled" })
+        .where(eq(salesOrders.id, id));
+
+      await logAudit(tx, {
+        userId: sesi.userId,
+        aksi: "cancel",
+        entitas: "sales_orders",
+        entitasId: id,
+        detail: { statusSebelumnya: existing.status },
+      });
     });
 
     revalidatePath("/penjualan/so");
+    revalidatePath(`/penjualan/so/${id}`);
     return { success: true };
   } catch (error) {
-    console.error("Gagal menghapus Sales Order:", error);
+    console.error("Gagal membatalkan Sales Order:", error);
     return {
       success: false,
       error:
-        "Gagal menghapus Sales Order. Pastikan dokumen belum terhubung dengan invoice atau pembayaran aktif.",
+        error instanceof Error
+          ? error.message
+          : "Gagal membatalkan Sales Order.",
     };
   }
 }
