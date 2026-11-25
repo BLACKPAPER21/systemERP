@@ -3,6 +3,7 @@
  * - Melindungi semua halaman di dalam grup ini dengan sesi (NF-2).
  * - Daftar menu ditulis sebagai SATU BARIS PER MODUL (dengan penanda komentar)
  *   agar tiap kelompok hanya menyunting baris miliknya — PRD §11.3 catatan.
+ * - M5 (Keuangan): peran "keuangan" hanya mengakses menu /keuangan/* saja.
  */
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -36,9 +37,15 @@ interface MenuItem {
   label: string;
   roles: Peran[];
   icon: LucideIcon;
+  /** Nama grup: dipakai sebagai heading pemisah di sidebar */
+  group?: string;
 }
 
-/* Daftar menu — satu baris per modul. */
+/* Daftar menu — satu baris per modul.
+ * ATURAN AKSES (PRD §4.2):
+ * - Peran "keuangan" HANYA boleh lihat menu grup "Keuangan" (M5).
+ * - Produk/Supplier/Pelanggan/Pembelian/Stok/Penjualan: hanya owner, gudang, sales.
+ */
 const MENU: MenuItem[] = [
   // ---- M6 — Dashboard (baris milik M6) ----
   {
@@ -51,25 +58,26 @@ const MENU: MenuItem[] = [
   {
     href: "/master/produk",
     label: "Produk",
-    roles: ["owner", "gudang", "sales", "keuangan"],
+    roles: ["owner", "gudang", "sales"],
     icon: Boxes,
+    group: "Master Data",
   },
   {
     href: "/master/supplier",
     label: "Supplier",
-    roles: ["owner", "gudang", "keuangan"],
+    roles: ["owner", "gudang"],
     icon: Building2,
   },
   {
     href: "/master/pelanggan",
     label: "Pelanggan",
-    roles: ["owner", "sales", "keuangan"],
+    roles: ["owner", "sales"],
     icon: Store,
   },
   {
     href: "/master/akun",
     label: "Bagan Akun",
-    roles: ["owner", "keuangan"],
+    roles: ["owner"],
     icon: Landmark,
   },
   {
@@ -88,8 +96,9 @@ const MENU: MenuItem[] = [
   {
     href: "/pembelian/po",
     label: "Pesanan Pembelian",
-    roles: ["owner", "gudang", "keuangan"],
+    roles: ["owner", "gudang"],
     icon: ShoppingCart,
+    group: "Operasional",
   },
   {
     href: "/pembelian/grn",
@@ -107,7 +116,7 @@ const MENU: MenuItem[] = [
   {
     href: "/persediaan/kartu-stok",
     label: "Kartu Stok",
-    roles: ["owner", "gudang", "sales", "keuangan"],
+    roles: ["owner", "gudang", "sales"],
     icon: Boxes,
   },
   {
@@ -132,15 +141,18 @@ const MENU: MenuItem[] = [
   {
     href: "/penjualan/so",
     label: "Pesanan Penjualan",
-    roles: ["owner", "gudang", "sales", "keuangan"],
+    roles: ["owner", "gudang", "sales"],
     icon: Receipt,
   },
   // ---- M5 — Keuangan (baris milik M5) ----
+  // PENTING: Hanya peran "owner" dan "keuangan" yang boleh mengakses menu ini.
+  // Peran "keuangan" hanya akan melihat grup "Keuangan" ini di sidebar.
   {
     href: "/keuangan/pembayaran",
-    label: "Pembayaran",
+    label: "Pembayaran & Pelunasan",
     roles: ["owner", "keuangan"],
     icon: Wallet,
+    group: "Keuangan",
   },
   {
     href: "/keuangan/jurnal",
@@ -178,6 +190,9 @@ export default async function DashboardLayout({
   const peran = sesi.peran;
   const menu = MENU.filter((m) => m.roles.includes(peran));
 
+  // Kumpulkan grup yang sudah dirender agar heading hanya muncul sekali
+  const renderedGroups = new Set<string>();
+
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 border-r bg-sidebar md:flex md:flex-col">
@@ -186,19 +201,31 @@ export default async function DashboardLayout({
           <p className="text-xs text-muted-foreground">UMKM Retail/Distribusi</p>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-          {menu.map((m) => (
-            <Link
-              key={m.href}
-              href={m.href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors",
-                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              )}
-            >
-              <m.icon className="h-4 w-4" />
-              {m.label}
-            </Link>
-          ))}
+          {menu.map((m) => {
+            // Render heading grup jika ini item pertama dalam grup tersebut
+            const showGroupHeading = m.group && !renderedGroups.has(m.group);
+            if (m.group) renderedGroups.add(m.group);
+
+            return (
+              <div key={m.href}>
+                {showGroupHeading && (
+                  <p className="mb-1 mt-3 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {m.group}
+                  </p>
+                )}
+                <Link
+                  href={m.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
+                  <m.icon className="h-4 w-4" />
+                  {m.label}
+                </Link>
+              </div>
+            );
+          })}
         </nav>
         <form
           action={async () => {

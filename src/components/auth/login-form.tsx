@@ -30,7 +30,7 @@ export function LoginForm() {
         setGalat("Email atau kata sandi salah.");
         return;
       }
-      // Tujuan mengikuti peran (PRD §4.2) — lihat src/lib/rute.ts
+      // Tujuan mengikuti peran (PRD §4.2) — peta lengkapnya di src/lib/rute.ts
       const sesi = await getSession();
       router.push(ruteAwal(sesi?.user?.peran));
       router.refresh();
