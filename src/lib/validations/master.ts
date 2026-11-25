@@ -97,5 +97,10 @@ export const skemaPenggunaUbah = z.object({
   aktif: z.boolean(),
 });
 
+export const skemaPenggunaHapus = z.object({
+  id: z.coerce.number().int().positive("ID pengguna tidak valid"),
+});
+
 export type SkemaPenggunaBaruInput = z.infer<typeof skemaPenggunaBaru>;
 export type SkemaPenggunaUbahInput = z.infer<typeof skemaPenggunaUbah>;
+export type SkemaPenggunaHapusInput = z.infer<typeof skemaPenggunaHapus>;

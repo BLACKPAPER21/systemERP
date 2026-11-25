@@ -8,6 +8,7 @@ import { AksesDitolak } from "@/components/shared/akses-ditolak";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { PenggunaFormDialog } from "./pengguna-form";
+import { HapusPenggunaButton } from "./hapus-pengguna-button";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -71,7 +72,7 @@ export default async function PenggunaPage({
               <TableHead>Peran</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Dibuat</TableHead>
-              <TableHead className="w-[90px]">Ubah</TableHead>
+              <TableHead className="w-[160px]">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -92,20 +93,27 @@ export default async function PenggunaPage({
                   </TableCell>
                   <TableCell>{formatTanggal(u.createdAt)}</TableCell>
                   <TableCell>
-                    <PenggunaFormDialog
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          Ubah
-                        </Button>
-                      }
-                      baris={{
-                        id: u.id,
-                        nama: u.nama,
-                        email: u.email,
-                        peran: u.peran,
-                        aktif: u.aktif,
-                      }}
-                    />
+                    <div className="flex items-center gap-1">
+                      <PenggunaFormDialog
+                        trigger={
+                          <Button variant="ghost" size="sm">
+                            Ubah
+                          </Button>
+                        }
+                        baris={{
+                          id: u.id,
+                          nama: u.nama,
+                          email: u.email,
+                          peran: u.peran,
+                          aktif: u.aktif,
+                        }}
+                      />
+                      <HapusPenggunaButton
+                        id={u.id}
+                        nama={u.nama}
+                        diriSendiri={u.id === akses.sesi.userId}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
