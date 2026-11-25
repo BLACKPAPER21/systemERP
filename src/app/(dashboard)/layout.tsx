@@ -59,26 +59,26 @@ const MENU: MenuItem[] = [
   {
     href: "/master/produk",
     label: "Produk",
-    roles: ["owner", "gudang", "sales"],
+    roles: ["owner", "gudang", "sales", "keuangan"],
     icon: Boxes,
     group: "Master Data",
   },
   {
     href: "/master/supplier",
     label: "Supplier",
-    roles: ["owner", "gudang"],
+    roles: ["owner", "gudang", "keuangan"],
     icon: Building2,
   },
   {
     href: "/master/pelanggan",
     label: "Pelanggan",
-    roles: ["owner", "sales"],
+    roles: ["owner", "sales", "keuangan"],
     icon: Store,
   },
   {
     href: "/master/akun",
     label: "Bagan Akun",
-    roles: ["owner"],
+    roles: ["owner", "keuangan"],
     icon: Landmark,
   },
   {
@@ -97,7 +97,7 @@ const MENU: MenuItem[] = [
   {
     href: "/pembelian/po",
     label: "Pesanan Pembelian",
-    roles: ["owner", "gudang"],
+    roles: ["owner", "gudang", "keuangan"],
     icon: ShoppingCart,
     group: "Operasional",
   },
@@ -117,7 +117,7 @@ const MENU: MenuItem[] = [
   {
     href: "/persediaan/kartu-stok",
     label: "Kartu Stok",
-    roles: ["owner", "gudang", "sales"],
+    roles: ["owner", "gudang", "sales", "keuangan"],
     icon: Boxes,
   },
   {
@@ -142,7 +142,7 @@ const MENU: MenuItem[] = [
   {
     href: "/penjualan/so",
     label: "Pesanan Penjualan",
-    roles: ["owner", "gudang", "sales"],
+    roles: ["owner", "gudang", "sales", "keuangan"],
     icon: Receipt,
   },
   // ---- M5 — Keuangan (baris milik M5) ----
