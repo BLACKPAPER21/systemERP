@@ -1,13 +1,13 @@
 /* MILIK M6 — Dashboard manajerial.
  *
  * Fitur:
- * - Filter periode (7 hari / 30 hari / bulan ini / tahun ini) via ?periode=
+ * - Filter periode (7 hari / 30 hari / 3 bulan terakhir / tahun ini) via ?periode=
  * - Ekspor ringkasan dashboard (CSV siap Excel & Cetak/PDF)
  * - Baris pintasan cepat (Quick Actions) sesuai peran pengguna
  * - KPI dengan perbandingan terhadap periode sebelumnya
  * - Grafik Penjualan vs Pembelian (Recharts)
  * - Daftar dokumen yang perlu ditindaklanjuti
- * - Transaksi terakhir dengan pencarian (?q=) & filter jenis (?jenis=), 5 per halaman
+ * - Transaksi terakhir: 5 terbaru (tanpa paging pada "Semua jenis", dengan paging saat difilter per jenis)
  * Stok kritis dipindah ke ikon notifikasi di header (lihat NotifikasiStok).
  */
 import Form from "next/form";
@@ -100,8 +100,8 @@ import {
 /* ------------------------------------------------------------------ */
 
 const TRANSAKSI_PER_HALAMAN = 5;
-/** Batas jumlah dokumen terbaru yang diambil per sumber & secara total. */
-const BATAS_TRANSAKSI = 25;
+/** Batas jumlah dokumen saat filter jenis tertentu dinyalakan. */
+const BATAS_TRANSAKSI_FILTER = 100;
 
 const JENIS_TRANSAKSI = [
   { kode: "semua", label: "Semua jenis" },
@@ -326,6 +326,8 @@ export default async function DashboardPage({
   const jenis: KodeJenis = JENIS_TRANSAKSI.some((j) => j.kode === jenisParam)
     ? (jenisParam as KodeJenis)
     : "semua";
+  const pakaiPaging = jenis !== "semua";
+  const batasAmbil = pakaiPaging ? BATAS_TRANSAKSI_FILTER : TRANSAKSI_PER_HALAMAN;
   const halamanDiminta = Math.max(1, Number(teksParam(params.halaman)) || 1);
   const pola = q ? polaCari(q) : null;
   const hariIni = rentang.akhir;
@@ -443,7 +445,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(invoices.tanggal), desc(invoices.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
     jikaJenis("pembayaran", () =>
       db
@@ -464,7 +466,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(payments.tanggal), desc(payments.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
     jikaJenis("jurnal", () =>
       db
@@ -491,7 +493,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(journalEntries.tanggal), desc(journalEntries.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
     jikaJenis("penerimaan", () =>
       db
@@ -515,7 +517,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(goodsReceipts.tanggal), desc(goodsReceipts.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
     jikaJenis("so", () =>
       db
@@ -538,7 +540,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(salesOrders.tanggal), desc(salesOrders.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
     jikaJenis("po", () =>
       db
@@ -561,7 +563,7 @@ export default async function DashboardPage({
           ),
         )
         .orderBy(desc(purchaseOrders.tanggal), desc(purchaseOrders.id))
-        .limit(BATAS_TRANSAKSI),
+        .limit(batasAmbil),
     ),
   ]);
 
@@ -716,17 +718,21 @@ export default async function DashboardPage({
       (a, b) =>
         b.tanggal.localeCompare(a.tanggal) || b.nomor.localeCompare(a.nomor),
     )
-    .slice(0, BATAS_TRANSAKSI);
+    .slice(0, batasAmbil);
 
   const totalHalamanTransaksi = Math.max(
     1,
     Math.ceil(semuaTransaksi.length / TRANSAKSI_PER_HALAMAN),
   );
-  const halamanTransaksi = Math.min(halamanDiminta, totalHalamanTransaksi);
-  const transaksiPerHalaman = semuaTransaksi.slice(
-    (halamanTransaksi - 1) * TRANSAKSI_PER_HALAMAN,
-    halamanTransaksi * TRANSAKSI_PER_HALAMAN,
-  );
+  const halamanTransaksi = pakaiPaging
+    ? Math.min(halamanDiminta, totalHalamanTransaksi)
+    : 1;
+  const transaksiDitampilkan = pakaiPaging
+    ? semuaTransaksi.slice(
+        (halamanTransaksi - 1) * TRANSAKSI_PER_HALAMAN,
+        halamanTransaksi * TRANSAKSI_PER_HALAMAN,
+      )
+    : semuaTransaksi;
   const adaFilterTransaksi = q !== "" || jenis !== "semua";
 
   const totalNilaiPersediaan = angka(ringkasanPersediaan[0]?.totalNilai);
@@ -970,8 +976,9 @@ export default async function DashboardPage({
           <div>
             <CardTitle className="text-base">Transaksi Terakhir</CardTitle>
             <CardDescription className="mt-1">
-              Dokumen terbaru pada periode {rentang.label.toLowerCase()} ·{" "}
-              {TRANSAKSI_PER_HALAMAN} per halaman
+              {pakaiPaging
+                ? `${labelJenisAktif} pada periode ${rentang.label.toLowerCase()} · ${TRANSAKSI_PER_HALAMAN} per halaman`
+                : `${TRANSAKSI_PER_HALAMAN} dokumen paling baru pada periode ${rentang.label.toLowerCase()}`}
             </CardDescription>
           </div>
           <FileClock className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
@@ -1049,7 +1056,7 @@ export default async function DashboardPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transaksiPerHalaman.map((transaksi) => {
+              {transaksiDitampilkan.map((transaksi) => {
                 const ArahIkon =
                   transaksi.arah === "masuk" ? ArrowDownRight : ArrowUpRight;
                 return (
@@ -1106,19 +1113,21 @@ export default async function DashboardPage({
               ) : null}
             </TableBody>
           </Table>
-          <div className="px-6 pb-4">
-            <Pagination
-              basePath="/"
-              halaman={halamanTransaksi}
-              perHalaman={TRANSAKSI_PER_HALAMAN}
-              total={semuaTransaksi.length}
-              filters={{
-                periode: periode !== PERIODE_BAWAAN ? periode : "",
-                q,
-                jenis: jenis !== "semua" ? jenis : "",
-              }}
-            />
-          </div>
+          {pakaiPaging ? (
+            <div className="px-6 pb-4">
+              <Pagination
+                basePath="/"
+                halaman={halamanTransaksi}
+                perHalaman={TRANSAKSI_PER_HALAMAN}
+                total={semuaTransaksi.length}
+                filters={{
+                  periode: periode !== PERIODE_BAWAAN ? periode : "",
+                  q,
+                  jenis,
+                }}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
