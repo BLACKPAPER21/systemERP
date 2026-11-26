@@ -8,7 +8,7 @@
 export const PILIHAN_PERIODE = [
   { kode: "7h", label: "7 Hari" },
   { kode: "30h", label: "30 Hari" },
-  { kode: "bulan", label: "Bulan Ini" },
+  { kode: "3b", label: "3 Bulan Terakhir" },
   { kode: "tahun", label: "Tahun Ini" },
 ] as const;
 
@@ -82,15 +82,17 @@ export function hitungRentang(
   const bulan = hariIni.getMonth();
   const hari = hariIni.getDate();
 
-  if (kode === "bulan") {
+  if (kode === "3b") {
+    const batas3BulanLalu = tanggalAman(tahun, bulan - 3, hari);
+    const batas6BulanLalu = tanggalAman(tahun, bulan - 6, hari);
     return {
       kode,
       label,
-      awal: tanggalIso(new Date(tahun, bulan, 1)),
+      awal: tanggalIso(geserHari(batas3BulanLalu, 1)),
       akhir: tanggalIso(hariIni),
-      awalLalu: tanggalIso(new Date(tahun, bulan - 1, 1)),
-      akhirLalu: tanggalIso(tanggalAman(tahun, bulan - 1, hari)),
-      kelompok: "hari",
+      awalLalu: tanggalIso(geserHari(batas6BulanLalu, 1)),
+      akhirLalu: tanggalIso(batas3BulanLalu),
+      kelompok: "bulan",
     };
   }
 
@@ -123,11 +125,15 @@ export function daftarEmberGrafik(rentang: RentangPeriode) {
   const [tZ, bZ, hZ] = rentang.akhir.split("-").map(Number);
 
   if (rentang.kelompok === "bulan") {
+    const lintasTahun = tZ !== tA;
     for (let b = bA - 1; b <= bZ - 1 + (tZ - tA) * 12; b++) {
       const tgl = new Date(tA, b, 1);
+      const namaBulan = NAMA_BULAN.format(tgl);
       ember.push({
         kunci: tanggalIso(tgl).slice(0, 7),
-        label: NAMA_BULAN.format(tgl),
+        label: lintasTahun
+          ? `${namaBulan} '${String(tgl.getFullYear()).slice(-2)}`
+          : namaBulan,
       });
     }
     return ember;
